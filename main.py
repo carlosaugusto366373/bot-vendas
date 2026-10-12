@@ -23,32 +23,39 @@ SHARPIFY_BASE = os.getenv("SHARPIFY_GATEWAY_URL", "https://sharpify-pay.com")
 SHARPIFY_WEBHOOK_SECRET = os.getenv("SHARPIFY_WEBHOOK_SECRET", "")
 WEBHOOK_URL = os.getenv("WEBHOOK_URL", "")
 
-SUPABASE_URL = os.getenv("SUPABASE_URL", "")
-SUPABASE_KEY = os.getenv("SUPABASE_KEY", "")
+SUPABASE_URL = os.getenv("SUPABASE_URL", "").strip()
+SUPABASE_KEY = os.getenv("SUPABASE_KEY", "").strip()
+
+import sys
+print(f"🔥 [DEBUG] URL repr: {repr(SUPABASE_URL)}", file=sys.stderr, flush=True)
+print(f"🔥 [DEBUG] URL len: {len(SUPABASE_URL)}", file=sys.stderr, flush=True)
+print(f"🔥 [DEBUG] KEY repr: {repr(SUPABASE_KEY[:30])}...", file=sys.stderr, flush=True)
+print(f"🔥 [DEBUG] KEY len: {len(SUPABASE_KEY)}", file=sys.stderr, flush=True)
 
 supabase: Client = None
 if SUPABASE_URL and SUPABASE_KEY:
     try:
+        # Testa DNS primeiro
+        import socket
+        try:
+            host = SUPABASE_URL.replace("https://", "").replace("http://", "").split("/")[0]
+            ip = socket.gethostbyname(host)
+            print(f"🔥 [DEBUG] DNS OK — {host} -> {ip}", file=sys.stderr, flush=True)
+        except Exception as dns_e:
+            print(f"🔥 [DEBUG] DNS FALHOU — {dns_e}", file=sys.stderr, flush=True)
+
         supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
-        supabase.table("bot_state").upsert({
-            "key": "_debug_startup",
-            "value": {
-                "url_len": len(SUPABASE_URL),
-                "key_len": len(SUPABASE_KEY),
-                "url_inicio": SUPABASE_URL[:30],
-                "key_inicio": SUPABASE_KEY[:20],
-                "timestamp": datetime.now().isoformat()
-            }
-        }).execute()
-        # ⭐ AGORA MOSTRA NO LOG SE DEU CERTO
-        import sys
-        print("🔥 [DEBUG] SUPABASE UPSERT OK", file=sys.stderr, flush=True)
+        print("🔥 [DEBUG] Cliente Supabase criado", file=sys.stderr, flush=True)
+
+        try:
+            r = supabase.table("bot_state").select("key").limit(1).execute()
+            print(f"🔥 [DEBUG] SELECT OK — {len(r.data)} linhas", file=sys.stderr, flush=True)
+        except Exception as sel_e:
+            print(f"🔥 [DEBUG] SELECT FALHOU — {type(sel_e).__name__}: {sel_e}", file=sys.stderr, flush=True)
     except Exception as e:
-        import sys
-        print(f"🔥 [DEBUG] SUPABASE ERRO: {type(e).__name__}: {e}", file=sys.stderr, flush=True)
+        print(f"🔥 [DEBUG] ERRO GERAL — {type(e).__name__}: {e}", file=sys.stderr, flush=True)
 else:
-    import sys
-    print(f"🔥 [DEBUG] SUPABASE NAO CONFIGURADO — URL: {bool(SUPABASE_URL)} KEY: {bool(SUPABASE_KEY)}", file=sys.stderr, flush=True)
+    print(f"🔥 [DEBUG] NAO CONFIGURADO", file=sys.stderr, flush=True)
 
 intents = discord.Intents.default()
 intents.message_content = True
