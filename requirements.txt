@@ -1,5 +1,5 @@
 discord.py
 python-dotenv
 aiohttp
-supabase>=2.40.0
+supabase
 Pillow
