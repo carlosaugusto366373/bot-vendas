@@ -26,36 +26,15 @@ WEBHOOK_URL = os.getenv("WEBHOOK_URL", "")
 SUPABASE_URL = os.getenv("SUPABASE_URL", "").strip()
 SUPABASE_KEY = os.getenv("SUPABASE_KEY", "").strip()
 
-import sys
-print(f"🔥 [DEBUG] URL repr: {repr(SUPABASE_URL)}", file=sys.stderr, flush=True)
-print(f"🔥 [DEBUG] URL len: {len(SUPABASE_URL)}", file=sys.stderr, flush=True)
-print(f"🔥 [DEBUG] KEY repr: {repr(SUPABASE_KEY[:30])}...", file=sys.stderr, flush=True)
-print(f"🔥 [DEBUG] KEY len: {len(SUPABASE_KEY)}", file=sys.stderr, flush=True)
-
 supabase: Client = None
 if SUPABASE_URL and SUPABASE_KEY:
     try:
-        # Testa DNS primeiro
-        import socket
-        try:
-            host = SUPABASE_URL.replace("https://", "").replace("http://", "").split("/")[0]
-            ip = socket.gethostbyname(host)
-            print(f"🔥 [DEBUG] DNS OK — {host} -> {ip}", file=sys.stderr, flush=True)
-        except Exception as dns_e:
-            print(f"🔥 [DEBUG] DNS FALHOU — {dns_e}", file=sys.stderr, flush=True)
-
         supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
-        print("🔥 [DEBUG] Cliente Supabase criado", file=sys.stderr, flush=True)
-
-        try:
-            r = supabase.table("bot_state").select("key").limit(1).execute()
-            print(f"🔥 [DEBUG] SELECT OK — {len(r.data)} linhas", file=sys.stderr, flush=True)
-        except Exception as sel_e:
-            print(f"🔥 [DEBUG] SELECT FALHOU — {type(sel_e).__name__}: {sel_e}", file=sys.stderr, flush=True)
+        print("✅ Supabase conectado")
     except Exception as e:
-        print(f"🔥 [DEBUG] ERRO GERAL — {type(e).__name__}: {e}", file=sys.stderr, flush=True)
+        print(f"❌ Erro Supabase: {e}")
 else:
-    print(f"🔥 [DEBUG] NAO CONFIGURADO", file=sys.stderr, flush=True)
+    print("⚠️ Supabase não configurado")
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -285,6 +264,29 @@ async def webhook_sharpify(request):
         return web.Response(status=500, text="error")
         
 # ═══════════════════════════════════════
+#  ATUALIZAR CATÁLOGO POSTADO (em tempo real)
+# ═══════════════════════════════════════
+async def atualizar_catalogo(pid):
+    """Edita a view do catálogo postado quando o estoque muda"""
+    try:
+        postados = get_postados()
+        for msg_id, dados in postados.items():
+            if dados.get("produto_id") != pid:
+                continue
+            try:
+                canal = bot.get_channel(int(dados["canal_id"]))
+                if not canal:
+                    continue
+                msg = await canal.fetch_message(int(msg_id))
+                nova_view = VerOpcoesView(pid)
+                await msg.edit(view=nova_view)
+                print(f"[Catálogo] Atualizado produto {pid} na msg {msg_id}")
+            except Exception as ex:
+                print(f"[Catálogo] erro msg {msg_id}: {type(ex).__name__}: {ex}")
+    except Exception as e:
+        print(f"[Catálogo] erro geral: {e}")
+
+# ═══════════════════════════════════════
 #  ENTREGA AUTOMÁTICA
 # ═══════════════════════════════════════
 async def entregar_pedido(link_id):
@@ -395,7 +397,10 @@ async def entregar_pedido(link_id):
             e.set_footer(text="QZZ Vendas • Log automático", icon_url=bot.user.display_avatar.url)
             await ch.send(embed=e)
 
-    # ─── Fecha thread
+    # ⭐ Atualiza o catálogo (estoque baixou)
+    await atualizar_catalogo(pedido["produto_id"])
+
+    # ─── Fecha thread (SEM locked)
     if pedido.get("thread_id"):
         try:
             thread = bot.get_channel(int(pedido["thread_id"]))
@@ -406,11 +411,19 @@ async def entregar_pedido(link_id):
                     color=0x57F287, timestamp=datetime.now()
                 )
                 await thread.send(embed=e)
+                print(f"[Thread] Aguardando 30s para arquivar {thread.id}")
                 await asyncio.sleep(30)
-                try: await thread.edit(archived=True, locked=True)
-                except: pass
+                try:
+                    thread = await bot.fetch_channel(int(pedido["thread_id"]))
+                    if thread and not thread.archived:
+                        await thread.edit(archived=True)
+                        print(f"[Thread] Arquivada: {thread.id}")
+                    else:
+                        print(f"[Thread] Já arquivada ou não encontrada")
+                except Exception as ex:
+                    print(f"[Thread] Erro ao arquivar: {type(ex).__name__}: {ex}")
         except Exception as e:
-            print(f"[Thread] erro: {e}")
+            print(f"[Thread] Erro geral: {type(e).__name__}: {e}")
 
 # ═══════════════════════════════════════
 #  WEB SERVER
@@ -494,6 +507,7 @@ class EditarProdutoModal(discord.ui.Modal, title="✏️ Editar Produto"):
         if self.imagem.value: p["imagem"] = self.imagem.value
         set_produtos(prods)
         await i.response.send_message("✅ Produto atualizado!", ephemeral=True)
+        await atualizar_catalogo(self.pid)
 
 class CriarVariacaoModal(discord.ui.Modal, title="➕ Criar Variação"):
     nome = discord.ui.TextInput(label="Nome da variação", required=True, max_length=100)
@@ -534,6 +548,7 @@ class AddKeysModal(discord.ui.Modal, title="➕ Adicionar Keys"):
         v.setdefault("keys", []).extend(novas)
         set_produtos(prods)
         await i.response.send_message(f"✅ **{len(novas)}** keys adicionadas!\nTotal: `{len(v['keys'])}`", ephemeral=True)
+        await atualizar_catalogo(self.pid)
 
 class DeletarKeysModal(discord.ui.Modal, title="🗑️ Deletar Keys"):
     keys = discord.ui.TextInput(label="Cole as keys a deletar (uma por linha)", style=discord.TextStyle.paragraph, required=True, max_length=4000)
@@ -554,6 +569,7 @@ class DeletarKeysModal(discord.ui.Modal, title="🗑️ Deletar Keys"):
         depois = len(v["keys"])
         set_produtos(prods)
         await i.response.send_message(f"🗑️ **{antes - depois}** keys deletadas.\nRestam: `{depois}`", ephemeral=True)
+        await atualizar_catalogo(self.pid)
 
 class PostarCatalogoModal(discord.ui.Modal, title="📢 Postar Catálogo"):
     titulo = discord.ui.TextInput(label="Título do produto", required=True, max_length=150)
@@ -865,6 +881,20 @@ class PainelAdminView(discord.ui.View):
             if linhas: e.add_field(name=f"📦 {p['nome']}", value="\n".join(linhas), inline=False)
         e.set_footer(text=f"Total: {total} keys", icon_url=bot.user.display_avatar.url)
         await i.response.send_message(embed=e, ephemeral=True)
+
+    @discord.ui.button(label="Atualizar Catálogo", emoji="🔄", style=discord.ButtonStyle.secondary, custom_id="adm_atualizar")
+    async def atualizar(self, i, b):
+        if not is_staff(i.user):
+            await i.response.send_message("❌ Sem permissão.", ephemeral=True); return
+        prods = get_produtos()
+        if not prods:
+            await i.response.send_message("❌ Nenhum produto.", ephemeral=True); return
+        await i.response.defer(ephemeral=True, thinking=True)
+        total = 0
+        for pid in prods.keys():
+            await atualizar_catalogo(pid)
+            total += 1
+        await i.followup.send(f"✅ **{total}** catálogos atualizados!", ephemeral=True)
 
 class SelProdutoAdmin(discord.ui.View):
     def __init__(self, opts):
