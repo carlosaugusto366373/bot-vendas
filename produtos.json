@@ -1,0 +1,75 @@
+{
+    "u3b3ycs3": {
+        "id": "u3b3ycs3",
+        "nome": "wev",
+        "descricao": "vcsav",
+        "imagem": "vsdv",
+        "categoria": "apps",
+        "variacoes": {},
+        "ativo": true,
+        "criado_em": "12/10/2026 10:46"
+    },
+    "dqrp41kf": {
+        "id": "dqrp41kf",
+        "nome": "vefv",
+        "descricao": "vev",
+        "imagem": null,
+        "categoria": "apps",
+        "variacoes": {
+            "zju990vu": {
+                "id": "zju990vu",
+                "nome": "dweedqw",
+                "preco": 13.99,
+                "keys": [],
+                "cargo_id": null
+            }
+        },
+        "ativo": true,
+        "criado_em": "12/10/2026 10:48"
+    },
+    "1bzpvajp": {
+        "id": "1bzpvajp",
+        "nome": "PROXY IOS",
+        "descricao": "# EXTERNAL iOS — ANT SCREENSHARE\n\n`🍎 COMPATIBILIDADE`\n\n[📱] **iOS 17 até 18.7.1**\n[⚡] **iOS 26.0 até 26.6.1**\n[🧪] **iOS 27.0 — somente até Beta 4**\n\n`📦 VOCÊ RECEBE`\n\n[🔗] Download do produto\n[📖] Tutorial completo de instalação\n[🔑] Key automática após a compra\n[💬] Suporte para configuração\n\n`💻 FORMAS DE INSTALAÇÃO`\n\n[🖥️] Instalação rápida \n[📦] Não precisa GBOX \n[✅] Instalação em 5 minutos \n\n`🔒 SEGURANÇA`\n\n[🛡️] Produto desenvolvido para uso seguro\n[🔄] Ative e desative as funções sem pr",
+        "imagem": null,
+        "categoria": "apps",
+        "variacoes": {
+            "zi7wvkj3": {
+                "id": "zi7wvkj3",
+                "nome": "PROXY IOS - 1 DIA",
+                "preco": 13.9,
+                "keys": [
+                    "Jsjahshs"
+                ],
+                "cargo_id": null
+            },
+            "sqsybkws": {
+                "id": "sqsybkws",
+                "nome": "PROXY IOS - 7 DIAS",
+                "preco": 33.9,
+                "keys": [],
+                "cargo_id": null
+            },
+            "9oh2axsf": {
+                "id": "9oh2axsf",
+                "nome": "PROXY teste",
+                "preco": 0.1,
+                "keys": [
+                    "Qjsjusjaa"
+                ],
+                "cargo_id": null
+            },
+            "cirasqw8": {
+                "id": "cirasqw8",
+                "nome": "PROXY teste 2",
+                "preco": 0.4,
+                "keys": [
+                    "Sjshsususus"
+                ],
+                "cargo_id": null
+            }
+        },
+        "ativo": true,
+        "criado_em": "12/10/2026 10:53"
+    }
+}

@@ -1,0 +1,6 @@
+{
+  "apps": { "nome": "📱 Aplicativos", "ordem": 1 },
+  "vpn": { "nome": "🌐 VPN", "ordem": 2 },
+  "jogos": { "nome": "🎮 Jogos", "ordem": 3 },
+  "gift": { "nome": "🎁 Gift Cards", "ordem": 4 }
+}
