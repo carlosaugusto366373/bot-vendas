@@ -6,6 +6,7 @@ from datetime import datetime
 from dotenv import load_dotenv
 from aiohttp import web
 from supabase import create_client, Client
+from PIL import Image, ImageDraw, ImageFont
 
 load_dotenv()
 
@@ -29,7 +30,7 @@ supabase: Client = None
 if SUPABASE_URL and SUPABASE_KEY:
     try:
         supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
-        print(f"✅ Supabase conectado")
+        print("✅ Supabase conectado")
     except Exception as e:
         print(f"❌ Erro Supabase: {e}")
 else:
@@ -41,7 +42,7 @@ intents.members = True
 bot = commands.Bot(command_prefix="!", intents=intents)
 
 # ═══════════════════════════════════════
-#  PERSISTÊNCIA (Supabase + cache + fallback local)
+#  PERSISTÊNCIA
 # ═══════════════════════════════════════
 _cache = {}
 
@@ -107,6 +108,109 @@ def url_imagem_valida(url):
     return url.lower().endswith(ext) or "cdn.discordapp.com" in url or "i.imgur.com" in url or "media.discordapp.net" in url
 
 # ═══════════════════════════════════════
+#  GERAÇÃO DE IMAGEM DO RECIBO
+# ═══════════════════════════════════════
+async def gerar_recibo_imagem(pedido):
+    try:
+        W, H = 800, 900
+        fundo = (13, 13, 13)
+        vermelho = (237, 66, 69)
+        vermelho_escuro = (120, 30, 32)
+        branco = (240, 240, 240)
+        cinza = (140, 140, 140)
+        cinza_escuro = (30, 30, 30)
+
+        img = Image.new("RGB", (W, H), fundo)
+        draw = ImageDraw.Draw(img)
+
+        f_titulo = f_grande = f_medio = f_normal = f_pequena = None
+        for nome in ["arial.ttf", "Arial.ttf", "DejaVuSans.ttf",
+                     "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+                     "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf"]:
+            try:
+                f_titulo = ImageFont.truetype(nome, 26)
+                f_grande = ImageFont.truetype(nome, 34)
+                f_medio = ImageFont.truetype(nome, 22)
+                f_normal = ImageFont.truetype(nome, 18)
+                f_pequena = ImageFont.truetype(nome, 14)
+                break
+            except: continue
+        if not f_titulo:
+            f_titulo = f_grande = f_medio = f_normal = f_pequena = ImageFont.load_default()
+
+        draw.rectangle([(0, 0), (W, 80)], fill=vermelho_escuro)
+        draw.text((30, 25), "QZZ VENDAS COMMUNITY", font=f_titulo, fill=branco)
+        draw.text((W - 90, 32), "APP", font=f_normal, fill=branco)
+        draw.line([(30, 100), (W - 30, 100)], fill=vermelho, width=2)
+
+        try:
+            user = await bot.fetch_user(pedido["comprador_id"])
+            avatar_bytes = await user.display_avatar.replace(size=128, format="png").read()
+            avatar = Image.open(io.BytesIO(avatar_bytes)).convert("RGBA").resize((90, 90), Image.LANCZOS)
+            mask = Image.new("L", (90, 90), 0)
+            ImageDraw.Draw(mask).ellipse((0, 0, 90, 90), fill=255)
+            img.paste(avatar, (30, 130), mask)
+        except Exception as e:
+            print(f"[Avatar] erro: {e}")
+            draw.ellipse([(30, 130), (120, 220)], fill=cinza_escuro)
+
+        nome_cliente = pedido.get("comprador_nome", "Cliente")
+        if len(nome_cliente) > 22: nome_cliente = nome_cliente[:22] + "..."
+        draw.text((140, 145), nome_cliente, font=f_medio, fill=branco)
+        draw.text((140, 180), f"ID: {pedido['comprador_id']}", font=f_pequena, fill=cinza)
+
+        draw.text((30, 260), "COMPRA REALIZADA", font=f_grande, fill=vermelho)
+
+        draw.text((30, 340), "CARRINHO", font=f_medio, fill=cinza)
+        produto_txt = f"{pedido['produto_nome']} | {pedido['variacao_nome']}"
+        if len(produto_txt) > 55: produto_txt = produto_txt[:55] + "..."
+        draw.text((30, 375), produto_txt, font=f_normal, fill=branco)
+
+        valor_txt = f"R$ {pedido['preco_final']:.2f}".replace(".", ",")
+        bbox = draw.textbbox((0, 0), valor_txt, font=f_medio)
+        w_txt = bbox[2] - bbox[0]
+        draw.text((W - 30 - w_txt, 372), valor_txt, font=f_medio, fill=branco)
+
+        draw.line([(W - 220, 415), (W - 30, 415)], fill=cinza_escuro, width=1)
+        draw.text((30, 435), "SUBTOTAL", font=f_normal, fill=cinza)
+        bbox = draw.textbbox((0, 0), valor_txt, font=f_normal)
+        w_txt = bbox[2] - bbox[0]
+        draw.text((W - 30 - w_txt, 435), valor_txt, font=f_normal, fill=branco)
+
+        box_y1, box_y2 = 510, 590
+        draw.rectangle([(30, box_y1), (W - 30, box_y2)], fill=vermelho_escuro)
+        draw.rectangle([(30, box_y1), (W - 30, box_y2)], outline=vermelho, width=2)
+        draw.text((55, box_y1 + 25), "VALOR PAGO", font=f_medio, fill=branco)
+        bbox = draw.textbbox((0, 0), valor_txt, font=f_grande)
+        w_txt = bbox[2] - bbox[0]
+        draw.text((W - 55 - w_txt, box_y1 + 18), valor_txt, font=f_grande, fill=branco)
+
+        draw.text((30, 640), "DETALHES", font=f_medio, fill=cinza)
+        draw.line([(30, 675), (W - 30, 675)], fill=cinza_escuro, width=1)
+
+        draw.text((30, 690), "ID do Pedido", font=f_pequena, fill=cinza)
+        draw.text((30, 710), f"#{pedido['id']}", font=f_normal, fill=branco)
+
+        draw.text((280, 690), "Data", font=f_pequena, fill=cinza)
+        draw.text((280, 710), pedido.get("pago_em", agora()), font=f_normal, fill=branco)
+
+        draw.text((520, 690), "Entrega", font=f_pequena, fill=cinza)
+        draw.text((520, 710), "Enviada no PV", font=f_normal, fill=(87, 242, 135))
+
+        draw.line([(30, 800), (W - 30, 800)], fill=vermelho, width=2)
+        draw.text((30, 820), "QZZ COMMUNITY #2K", font=f_medio, fill=cinza)
+        draw.text((W - 220, 825), "Obrigado pela compra", font=f_pequena, fill=cinza)
+        draw.rectangle([(0, 0), (W - 1, H - 1)], outline=vermelho, width=3)
+
+        buf = io.BytesIO()
+        img.save(buf, format="PNG", optimize=True)
+        buf.seek(0)
+        return buf
+    except Exception as e:
+        print(f"[Recibo] erro: {e}")
+        return None
+
+# ═══════════════════════════════════════
 #  SHARPIFY
 # ═══════════════════════════════════════
 async def sharpify_pagar(nome, descricao, valor):
@@ -158,7 +262,7 @@ async def webhook_sharpify(request):
     except Exception as e:
         print(f"[Webhook] erro: {e}")
         return web.Response(status=500, text="error")
-
+        
 # ═══════════════════════════════════════
 #  ENTREGA AUTOMÁTICA
 # ═══════════════════════════════════════
@@ -183,6 +287,7 @@ async def entregar_pedido(link_id):
     pedido["key_entregue"] = key
     pedido["pago_em"] = agora()
 
+    # ─── DM com key
     try:
         user = await bot.fetch_user(pedido["comprador_id"])
         if key:
@@ -206,6 +311,7 @@ async def entregar_pedido(link_id):
     except Exception as e:
         print(f"[DM] erro: {e}")
 
+    # ─── Cargo automático
     if cargo_id:
         guild = bot.get_guild(GUILD_ID)
         if guild:
@@ -220,6 +326,55 @@ async def entregar_pedido(link_id):
 
     set_pedidos(pedidos)
 
+    # ─── Posta o RECIBO (imagem) no canal de entregas
+    if CANAL_ENTREGAS:
+        ch = bot.get_channel(CANAL_ENTREGAS)
+        if ch:
+            try:
+                buf = await gerar_recibo_imagem(pedido)
+                if buf:
+                    file = discord.File(buf, filename=f"recibo_{pedido['id']}.png")
+                    e = discord.Embed(
+                        title="✅ Nova Compra Realizada!",
+                        description=f"👤 <@{pedido['comprador_id']}> acabou de comprar!\n📩 Key enviada no PV.",
+                        color=0x57F287,
+                        timestamp=datetime.now()
+                    )
+                    e.set_image(url=f"attachment://recibo_{pedido['id']}.png")
+                    e.set_footer(text=f"Pedido #{pedido['id']} • Obrigado pela preferência 💚", icon_url=bot.user.display_avatar.url)
+                    await ch.send(embed=e, file=file)
+                else:
+                    e = discord.Embed(
+                        title="✅ Nova Compra Realizada!",
+                        description=(
+                            f"👤 **Cliente:** <@{pedido['comprador_id']}>\n"
+                            f"📦 **Produto:** {pedido['produto_nome']}\n"
+                            f"🎁 **Opção:** {pedido['variacao_nome']}\n"
+                            f"💰 **Valor:** `R$ {pedido['preco_final']:.2f}`\n"
+                            f"🆔 **Pedido:** `#{pedido['id']}`"
+                        ),
+                        color=0x57F287, timestamp=datetime.now()
+                    )
+                    await ch.send(embed=e)
+            except Exception as e:
+                print(f"[Entregas] erro: {e}")
+
+    # ─── Log staff
+    if CANAL_LOGS:
+        ch = bot.get_channel(CANAL_LOGS)
+        if ch:
+            e = discord.Embed(title="💸 Nova Venda Aprovada!", description="━━━━━━━━━━━━━━━━━━━━━━━━━━", color=0x57F287, timestamp=datetime.now())
+            e.add_field(name="🆔 Pedido", value=f"`#{pedido['id']}`", inline=True)
+            e.add_field(name="👤 Cliente", value=f"<@{pedido['comprador_id']}>", inline=True)
+            e.add_field(name="💰 Valor", value=f"`R$ {pedido['preco_final']:.2f}`", inline=True)
+            e.add_field(name="📦 Produto", value=pedido["produto_nome"], inline=False)
+            e.add_field(name="🎁 Opção", value=pedido["variacao_nome"], inline=True)
+            e.add_field(name="🎭 Cargo", value=pedido.get("cargo_dado", "—"), inline=True)
+            e.add_field(name="🔑 Key", value=f"||`{key}`||" if key else "❌ Sem estoque", inline=False)
+            e.set_footer(text="QZZ Vendas • Log automático", icon_url=bot.user.display_avatar.url)
+            await ch.send(embed=e)
+
+    # ─── Fecha thread
     if pedido.get("thread_id"):
         try:
             thread = bot.get_channel(int(pedido["thread_id"]))
@@ -235,20 +390,6 @@ async def entregar_pedido(link_id):
                 except: pass
         except Exception as e:
             print(f"[Thread] erro: {e}")
-
-    if CANAL_LOGS:
-        ch = bot.get_channel(CANAL_LOGS)
-        if ch:
-            e = discord.Embed(title="💸 Nova Venda Aprovada!", description="━━━━━━━━━━━━━━━━━━━━━━━━━━", color=0x57F287, timestamp=datetime.now())
-            e.add_field(name="🆔 Pedido", value=f"`#{pedido['id']}`", inline=True)
-            e.add_field(name="👤 Cliente", value=f"<@{pedido['comprador_id']}>", inline=True)
-            e.add_field(name="💰 Valor", value=f"`R$ {pedido['preco_final']:.2f}`", inline=True)
-            e.add_field(name="📦 Produto", value=pedido["produto_nome"], inline=False)
-            e.add_field(name="🎁 Opção", value=pedido["variacao_nome"], inline=True)
-            e.add_field(name="🎭 Cargo", value=pedido.get("cargo_dado", "—"), inline=True)
-            e.add_field(name="🔑 Key", value=f"||`{key}`||" if key else "❌ Sem estoque", inline=False)
-            e.set_footer(text="QZZ Vendas • Log automático", icon_url=bot.user.display_avatar.url)
-            await ch.send(embed=e)
 
 # ═══════════════════════════════════════
 #  WEB SERVER
