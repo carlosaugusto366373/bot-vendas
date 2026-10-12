@@ -40,10 +40,15 @@ if SUPABASE_URL and SUPABASE_KEY:
                 "timestamp": datetime.now().isoformat()
             }
         }).execute()
+        # ⭐ AGORA MOSTRA NO LOG SE DEU CERTO
+        import sys
+        print("🔥 [DEBUG] SUPABASE UPSERT OK", file=sys.stderr, flush=True)
     except Exception as e:
-        pass
+        import sys
+        print(f"🔥 [DEBUG] SUPABASE ERRO: {type(e).__name__}: {e}", file=sys.stderr, flush=True)
 else:
-    pass
+    import sys
+    print(f"🔥 [DEBUG] SUPABASE NAO CONFIGURADO — URL: {bool(SUPABASE_URL)} KEY: {bool(SUPABASE_KEY)}", file=sys.stderr, flush=True)
 
 intents = discord.Intents.default()
 intents.message_content = True
