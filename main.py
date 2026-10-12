@@ -30,7 +30,6 @@ supabase: Client = None
 if SUPABASE_URL and SUPABASE_KEY:
     try:
         supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
-        # ⭐ Salva um teste no Supabase pra confirmar conexão
         supabase.table("bot_state").upsert({
             "key": "_debug_startup",
             "value": {
@@ -42,10 +41,14 @@ if SUPABASE_URL and SUPABASE_KEY:
             }
         }).execute()
     except Exception as e:
-        pass  # se falhar, ignora
+        pass
 else:
-    # Sem Supabase, usa JSON local
     pass
+
+intents = discord.Intents.default()
+intents.message_content = True
+intents.members = True
+bot = commands.Bot(command_prefix="!", intents=intents)
 
 # ═══════════════════════════════════════
 #  PERSISTÊNCIA
