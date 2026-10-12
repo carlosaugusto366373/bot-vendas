@@ -26,15 +26,23 @@ WEBHOOK_URL = os.getenv("WEBHOOK_URL", "")
 SUPABASE_URL = os.getenv("SUPABASE_URL", "")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY", "")
 
+print(f"[DEBUG] URL len={len(SUPABASE_URL)} | comeca={SUPABASE_URL[:30] if SUPABASE_URL else 'VAZIO'}")
+print(f"[DEBUG] KEY len={len(SUPABASE_KEY)} | comeca={SUPABASE_KEY[:20] if SUPABASE_KEY else 'VAZIO'}")
+
 supabase: Client = None
 if SUPABASE_URL and SUPABASE_KEY:
     try:
         supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
         print("✅ Supabase conectado")
+        try:
+            r = supabase.table("bot_state").select("key").limit(1).execute()
+            print(f"[DEBUG] Teste SELECT OK — {len(r.data)} linhas")
+        except Exception as test_e:
+            print(f"[DEBUG] Teste SELECT falhou: {test_e}")
     except Exception as e:
         print(f"❌ Erro Supabase: {e}")
 else:
-    print("⚠️ Supabase não configurado, usando JSON local")
+    print(f"⚠️ Supabase NAO configurado | URL vazia={not SUPABASE_URL} | KEY vazia={not SUPABASE_KEY}")
 
 intents = discord.Intents.default()
 intents.message_content = True
