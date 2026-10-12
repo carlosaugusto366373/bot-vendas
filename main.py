@@ -264,10 +264,9 @@ async def webhook_sharpify(request):
         return web.Response(status=500, text="error")
         
 # ═══════════════════════════════════════
-#  ATUALIZAR CATÁLOGO POSTADO (em tempo real)
+#  ATUALIZAR CATÁLOGO POSTADO
 # ═══════════════════════════════════════
 async def atualizar_catalogo(pid):
-    """Edita a view do catálogo postado quando o estoque muda"""
     try:
         postados = get_postados()
         for msg_id, dados in postados.items():
@@ -349,7 +348,7 @@ async def entregar_pedido(link_id):
 
     set_pedidos(pedidos)
 
-    # ─── Posta o RECIBO (imagem) no canal de entregas
+    # ─── RECIBO no canal de entregas
     if CANAL_ENTREGAS:
         ch = bot.get_channel(CANAL_ENTREGAS)
         if ch:
@@ -360,25 +359,11 @@ async def entregar_pedido(link_id):
                     e = discord.Embed(
                         title="✅ Nova Compra Realizada!",
                         description=f"👤 <@{pedido['comprador_id']}> acabou de comprar!\n📩 Key enviada no PV.",
-                        color=0x57F287,
-                        timestamp=datetime.now()
+                        color=0x57F287, timestamp=datetime.now()
                     )
                     e.set_image(url=f"attachment://recibo_{pedido['id']}.png")
                     e.set_footer(text=f"Pedido #{pedido['id']} • Obrigado pela preferência 💚", icon_url=bot.user.display_avatar.url)
                     await ch.send(embed=e, file=file)
-                else:
-                    e = discord.Embed(
-                        title="✅ Nova Compra Realizada!",
-                        description=(
-                            f"👤 **Cliente:** <@{pedido['comprador_id']}>\n"
-                            f"📦 **Produto:** {pedido['produto_nome']}\n"
-                            f"🎁 **Opção:** {pedido['variacao_nome']}\n"
-                            f"💰 **Valor:** `R$ {pedido['preco_final']:.2f}`\n"
-                            f"🆔 **Pedido:** `#{pedido['id']}`"
-                        ),
-                        color=0x57F287, timestamp=datetime.now()
-                    )
-                    await ch.send(embed=e)
             except Exception as e:
                 print(f"[Entregas] erro: {e}")
 
@@ -397,10 +382,9 @@ async def entregar_pedido(link_id):
             e.set_footer(text="QZZ Vendas • Log automático", icon_url=bot.user.display_avatar.url)
             await ch.send(embed=e)
 
-    # ⭐ Atualiza o catálogo (estoque baixou)
     await atualizar_catalogo(pedido["produto_id"])
 
-    # ─── Fecha thread (SEM locked)
+    # ─── Fecha thread
     if pedido.get("thread_id"):
         try:
             thread = bot.get_channel(int(pedido["thread_id"]))
@@ -411,19 +395,68 @@ async def entregar_pedido(link_id):
                     color=0x57F287, timestamp=datetime.now()
                 )
                 await thread.send(embed=e)
-                print(f"[Thread] Aguardando 30s para arquivar {thread.id}")
                 await asyncio.sleep(30)
                 try:
                     thread = await bot.fetch_channel(int(pedido["thread_id"]))
                     if thread and not thread.archived:
                         await thread.edit(archived=True)
-                        print(f"[Thread] Arquivada: {thread.id}")
-                    else:
-                        print(f"[Thread] Já arquivada ou não encontrada")
                 except Exception as ex:
-                    print(f"[Thread] Erro ao arquivar: {type(ex).__name__}: {ex}")
+                    print(f"[Thread] Erro: {type(ex).__name__}: {ex}")
         except Exception as e:
             print(f"[Thread] Erro geral: {type(e).__name__}: {e}")
+
+# ═══════════════════════════════════════
+#  CANCELAR PEDIDO
+# ═══════════════════════════════════════
+async def cancelar_pedido(pedido_id, cancelado_por):
+    pedidos = get_pedidos()
+    pedido = next((p for p in pedidos if p["id"] == pedido_id), None)
+    if not pedido:
+        return False, "Pedido não encontrado."
+    if pedido["status"] in ("entregue", "pago"):
+        return False, "Este pedido já foi pago e não pode ser cancelado."
+    if pedido["status"] == "cancelado":
+        return False, "Este pedido já foi cancelado."
+
+    pedido["status"] = "cancelado"
+    pedido["cancelado_em"] = agora()
+    pedido["cancelado_por"] = str(cancelado_por)
+    set_pedidos(pedidos)
+
+    # Fecha thread
+    if pedido.get("thread_id"):
+        try:
+            thread = bot.get_channel(int(pedido["thread_id"]))
+            if thread:
+                e = discord.Embed(
+                    title="❌ Pedido Cancelado",
+                    description="O pedido foi cancelado pelo cliente.\n\n**A thread será fechada em 10 segundos...**",
+                    color=0xED4245, timestamp=datetime.now()
+                )
+                await thread.send(embed=e)
+                await asyncio.sleep(10)
+                try:
+                    thread = await bot.fetch_channel(int(pedido["thread_id"]))
+                    if thread and not thread.archived:
+                        await thread.edit(archived=True)
+                except: pass
+        except Exception as e:
+            print(f"[Cancelar/Thread] erro: {e}")
+
+    # Log
+    if CANAL_LOGS:
+        ch = bot.get_channel(CANAL_LOGS)
+        if ch:
+            e = discord.Embed(title="❌ Pedido Cancelado", color=0xED4245, timestamp=datetime.now())
+            e.add_field(name="🆔 Pedido", value=f"`#{pedido_id}`", inline=True)
+            e.add_field(name="👤 Cliente", value=f"<@{pedido['comprador_id']}>", inline=True)
+            e.add_field(name="❌ Cancelado por", value=str(cancelado_por), inline=True)
+            e.add_field(name="📦 Produto", value=pedido["produto_nome"], inline=True)
+            e.add_field(name="🎁 Opção", value=pedido["variacao_nome"], inline=True)
+            e.add_field(name="💰 Valor", value=f"`R$ {pedido['preco_final']:.2f}`", inline=True)
+            await ch.send(embed=e)
+
+    return True, "Pedido cancelado com sucesso."
 
 # ═══════════════════════════════════════
 #  WEB SERVER
@@ -477,7 +510,7 @@ class CriarProdutoModal(discord.ui.Modal, title="➕ Criar Produto"):
             await i.response.send_message("❌ Sem permissão.", ephemeral=True); return
         cat = self.categoria.value.lower().strip()
         if cat not in get_catalogos():
-            await i.response.send_message(f"❌ Categoria inválida. Use: `{'`, `'.join(get_catalogos().keys())}`", ephemeral=True); return
+            await i.response.send_message(f"❌ Categoria inválida.", ephemeral=True); return
         prods = get_produtos()
         pid = novo_id()
         prods[pid] = {
@@ -799,20 +832,104 @@ class MetodoPagamentoView(discord.ui.View):
                 img_bytes = base64.b64decode(b64)
                 file = discord.File(io.BytesIO(img_bytes), filename="qrcode.png")
                 e.set_image(url="attachment://qrcode.png")
-                await i.followup.send(embed=e, file=file)
+                await i.followup.send(embed=e, file=file, view=PixAcoesView(pedido["id"], copia))
                 enviado = True
             except Exception as ex: print(f"[QR] {ex}")
         if not enviado:
-            await i.followup.send(embed=e)
+            await i.followup.send(embed=e, view=PixAcoesView(pedido["id"], copia))
 
+        # Envia o copia e cola também no PV do cliente
         if copia:
-            e2 = discord.Embed(
-                title="📋 Pix Copia e Cola",
-                description=f"**Copie e cole no seu banco:**\n\n```\n{copia}\n```",
-                color=0x57F287
+            try:
+                e_pv = discord.Embed(
+                    title="📋 Pix Copia e Cola",
+                    description=f"**Pedido #{pedido['id']}**\n\n```\n{copia}\n```\n\n_Copie o código acima e cole no seu banco/app._",
+                    color=0x57F287
+                )
+                await i.user.send(embed=e_pv)
+            except Exception as e_pv:
+                print(f"[PV] erro: {e_pv}")
+
+class PixAcoesView(discord.ui.View):
+    def __init__(self, pedido_id, copia):
+        super().__init__(timeout=None)
+        self.pedido_id = pedido_id
+        self.copia = copia
+
+    @discord.ui.button(label="Ver código Pix", emoji="📋", style=discord.ButtonStyle.primary)
+    async def ver_codigo(self, i, b):
+        pedidos = get_pedidos()
+        pedido = next((p for p in pedidos if p["id"] == self.pedido_id), None)
+        if not pedido:
+            await i.response.send_message("❌ Pedido não encontrado.", ephemeral=True); return
+        if i.user.id != pedido["comprador_id"]:
+            await i.response.send_message("❌ Só o comprador.", ephemeral=True); return
+
+        e = discord.Embed(
+            title="📋 Pix Copia e Cola",
+            description=f"**Pedido #{self.pedido_id}**\n\n```\n{self.copia}\n```\n\n👆 **Selecione o código acima e copie.**\nCole no seu banco/app para pagar.",
+            color=0x57F287
+        )
+        e.set_footer(text="Aguardando confirmação do pagamento...", icon_url=bot.user.display_avatar.url)
+        await i.response.send_message(embed=e, ephemeral=True)
+
+    @discord.ui.button(label="Cancelar Pagamento", emoji="❌", style=discord.ButtonStyle.danger)
+    async def cancelar(self, i, b):
+        pedidos = get_pedidos()
+        pedido = next((p for p in pedidos if p["id"] == self.pedido_id), None)
+        if not pedido:
+            await i.response.send_message("❌ Pedido não encontrado.", ephemeral=True); return
+        if i.user.id != pedido["comprador_id"]:
+            await i.response.send_message("❌ Só o comprador pode cancelar.", ephemeral=True); return
+        if pedido["status"] in ("entregue", "pago", "cancelado"):
+            await i.response.send_message("⚠️ Este pedido não pode mais ser cancelado.", ephemeral=True); return
+
+        e = discord.Embed(
+            title="⚠️ Confirmar Cancelamento",
+            description=(
+                f"**Tem certeza que deseja cancelar o pedido?**\n\n"
+                f"🆔 **Pedido:** `#{self.pedido_id}`\n"
+                f"📦 **Produto:** {pedido['produto_nome']}\n"
+                f"🎁 **Opção:** {pedido['variacao_nome']}\n"
+                f"💰 **Valor:** `R$ {pedido['preco_final']:.2f}`\n\n"
+                "Se cancelar, essa compra será encerrada e a thread fechada."
+            ),
+            color=0xED4245
+        )
+        await i.response.send_message(embed=e, view=ConfirmarCancelarView(self.pedido_id), ephemeral=True)
+
+class ConfirmarCancelarView(discord.ui.View):
+    def __init__(self, pedido_id):
+        super().__init__(timeout=120)
+        self.pedido_id = pedido_id
+
+    @discord.ui.button(label="Sim, cancelar", emoji="✅", style=discord.ButtonStyle.danger)
+    async def sim(self, i, b):
+        pedidos = get_pedidos()
+        pedido = next((p for p in pedidos if p["id"] == self.pedido_id), None)
+        if not pedido:
+            await i.response.send_message("❌ Pedido não encontrado.", ephemeral=True); return
+        if i.user.id != pedido["comprador_id"]:
+            await i.response.send_message("❌ Só o comprador.", ephemeral=True); return
+
+        b.disabled = True
+        try: await i.response.edit_message(view=self)
+        except: pass
+
+        sucesso, msg = await cancelar_pedido(self.pedido_id, i.user)
+        if sucesso:
+            e = discord.Embed(
+                title="❌ Pedido Cancelado",
+                description="Seu pedido foi cancelado com sucesso.\n\nSe mudar de ideia, pode comprar novamente a qualquer momento! 💚",
+                color=0xED4245
             )
-            e2.set_footer(text=f"Pedido #{pedido['id']}", icon_url=bot.user.display_avatar.url)
-            await i.followup.send(embed=e2)
+            await i.followup.send(embed=e, ephemeral=True)
+        else:
+            await i.followup.send(f"❌ {msg}", ephemeral=True)
+
+    @discord.ui.button(label="Não, voltar", emoji="↩️", style=discord.ButtonStyle.secondary)
+    async def nao(self, i, b):
+        await i.response.edit_message(content="✅ Ação cancelada. Você pode continuar o pagamento normalmente.", embed=None, view=None)
 
 # ═══════════════════════════════════════
 #  PAINEL ADMIN
