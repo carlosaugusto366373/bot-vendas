@@ -299,6 +299,20 @@ async def atualizar_catalogo(pid):
     except Exception as e:
         print(f"[Catálogo] erro geral: {e}")
 
+# ⭐ AQUI — antes de "ENTREGA AUTOMÁTICA"
+async def fechar_thread_em(thread_id, segundos):
+    """Fecha a thread em background após X segundos"""
+    await asyncio.sleep(segundos)
+    try:
+        thread = await bot.fetch_channel(int(thread_id))
+        if thread and not thread.archived:
+            await thread.edit(archived=True)
+            print(f"[Thread] ✅ Arquivada: {thread_id}")
+        else:
+            print(f"[Thread] Já arquivada ou não encontrada: {thread_id}")
+    except Exception as ex:
+        print(f"[Thread] ❌ Erro ao arquivar {thread_id}: {type(ex).__name__}: {ex}")
+
 # ═══════════════════════════════════════
 #  ENTREGA AUTOMÁTICA
 # ═══════════════════════════════════════
@@ -420,7 +434,7 @@ async def entregar_pedido(link_id):
 
     await atualizar_catalogo(pedido["produto_id"])
 
-    # ─── Fecha thread
+        # ─── Fecha thread (em background)
     if pedido.get("thread_id"):
         try:
             thread = bot.get_channel(int(pedido["thread_id"]))
@@ -432,20 +446,14 @@ async def entregar_pedido(link_id):
                         "│  🎉  **COMPRA CONFIRMADA**      │\n"
                         "╰─────────────────────────────╯\n\n"
                         "📩  **A key foi enviada no seu PV.**\n\n"
-                        "**Thread fechada em 30 segundos...**"
+                        "**Esta thread será fechada em 10 segundos...**"
                     ),
                     color=0x57F287, timestamp=datetime.now()
                 )
                 await thread.send(embed=e)
-                await asyncio.sleep(30)
-                try:
-                    thread = await bot.fetch_channel(int(pedido["thread_id"]))
-                    if thread and not thread.archived:
-                        await thread.edit(archived=True)
-                except Exception as ex:
-                    print(f"[Thread] Erro: {type(ex).__name__}: {ex}")
+                asyncio.create_task(fechar_thread_em(pedido["thread_id"], 10))
         except Exception as e:
-            print(f"[Thread] Erro geral: {type(e).__name__}: {e}")
+            print(f"[Thread] Erro ao notificar: {type(e).__name__}: {e}")
 
 # ═══════════════════════════════════════
 #  CANCELAR PEDIDO
@@ -652,11 +660,29 @@ class DeletarKeysModal(discord.ui.Modal, title="🗑️ Deletar Keys"):
 #  MODAL DE CATÁLOGO (com salvamento)
 # ═══════════════════════════════════════
 class PostarCatalogoModal(discord.ui.Modal, title="📢 Conteúdo do Catálogo"):
-    titulo = discord.ui.TextInput(label="Título", required=True, max_length=150)
-    bullets = discord.ui.TextInput(label="✅ Benefícios (1 por linha)", style=discord.TextStyle.paragraph, required=True, max_length=1000)
-    recebe = discord.ui.TextInput(label="📦 O que recebe (1 por linha)", style=discord.TextStyle.paragraph, required=True, max_length=800)
-    aviso = discord.ui.TextInput(label="⚠️ Aviso (opcional)", style=discord.TextStyle.paragraph, required=False, max_length=400)
-    imagem = discord.ui.TextInput(label="URL da imagem/banner", required=False, max_length=500)
+    titulo = discord.ui.TextInput(
+        label="Título (linha vermelha)",
+        placeholder="Ex: AUXILIO EXTERNAL - ANDROID",
+        required=True, max_length=100
+    )
+    nome_sub = discord.ui.TextInput(
+        label="Nome + Subtítulo (2 linhas)",
+        placeholder="PRECISION EXTERNAL - ANDROID E IOS\nPRECISION MOBILE PREMIUM",
+        style=discord.TextStyle.paragraph,
+        required=True, max_length=250
+    )
+    bullets = discord.ui.TextInput(
+        label="✅ Benefícios (1 por linha)",
+        placeholder="✅ Compatível com Android\n🔒 APK + Arquivo Incluso\n⚡ Instalação rápida",
+        style=discord.TextStyle.paragraph,
+        required=True, max_length=1500
+    )
+    recebe = discord.ui.TextInput(
+        label="📦 O que recebe (1 por linha)",
+        placeholder="✅ Precision External Mobile\n✅ APK + Arquivo Injetável\n✅ Tutorial de instalação",
+        style=discord.TextStyle.paragraph,
+        required=True, max_length=1000
+    )
 
     def __init__(self, pid, canal_id, salvar=True):
         super().__init__()
@@ -667,28 +693,33 @@ class PostarCatalogoModal(discord.ui.Modal, title="📢 Conteúdo do Catálogo")
     async def on_submit(self, i):
         if not is_staff(i.user):
             await i.response.send_message("❌ Sem permissão.", ephemeral=True); return
+
         prods = get_produtos()
         p = prods.get(self.pid)
         if not p:
             await i.response.send_message("❌ Produto não encontrado.", ephemeral=True); return
+
         canal = i.guild.get_channel(int(self.canal_id))
         if not canal:
             await i.response.send_message("❌ Canal não encontrado.", ephemeral=True); return
 
-        # Salva o conteúdo
         if self.salvar:
             p["catalogo_salvo"] = {
                 "titulo": self.titulo.value,
+                "nome_sub": self.nome_sub.value,
                 "bullets": self.bullets.value,
                 "recebe": self.recebe.value,
-                "aviso": self.aviso.value,
-                "imagem": self.imagem.value,
                 "atualizado_em": agora()
             }
             set_produtos(prods)
 
-        # Monta o embed
-        e = montar_embed_catalogo(self.titulo.value, self.bullets.value, self.recebe.value, self.aviso.value, p)
+        e = montar_embed_catalogo(
+            self.titulo.value,
+            self.nome_sub.value,
+            self.bullets.value,
+            self.recebe.value,
+            p
+        )
         view = VerOpcoesView(self.pid)
         msg = await canal.send(embed=e, view=view)
 
@@ -696,27 +727,31 @@ class PostarCatalogoModal(discord.ui.Modal, title="📢 Conteúdo do Catálogo")
         postados[str(msg.id)] = {"produto_id": self.pid, "canal_id": str(canal.id)}
         set_postados(postados)
         await i.response.send_message(f"✅ Catálogo postado em {canal.mention}!", ephemeral=True)
+def montar_embed_catalogo(titulo, nome_sub, bullets, recebe, produto):
+    # nome_sub pode ter 1 ou 2 linhas (nome + subtítulo)
+    linhas_nome = [l.strip() for l in nome_sub.split("\n") if l.strip()]
+    nome = linhas_nome[0] if len(linhas_nome) > 0 else produto.get("nome", "")
+    subtitulo = linhas_nome[1] if len(linhas_nome) > 1 else ""
 
-def montar_embed_catalogo(titulo, bullets, recebe, aviso, produto):
     linhas_b = [l.strip() for l in bullets.split("\n") if l.strip()]
-    bullets_txt = "\n".join(f"✅  **{l}**" for l in linhas_b) if linhas_b else "—"
+    bullets_txt = "\n".join(linhas_b) if linhas_b else "—"
     linhas_r = [l.strip() for l in recebe.split("\n") if l.strip()]
-    recebe_txt = "\n".join(f"✅  {l}" for l in linhas_r) if linhas_r else "—"
+    recebe_txt = "\n".join(linhas_r) if linhas_r else "—"
 
-    desc = f"## {titulo}\n"
-    desc += "╭─────────────────────────────╮\n"
-    desc += bullets_txt + "\n"
-    desc += "╰─────────────────────────────╯\n"
-    if aviso.strip():
-        desc += f"\n> ⚠️  *{aviso.strip()}*\n"
-    desc += "\n### 📦  VOCÊ RECEBE\n"
-    desc += "╭─────────────────────────────╮\n"
-    desc += recebe_txt + "\n"
-    desc += "╰─────────────────────────────╯"
+    desc = f"🔴 **{titulo}**\n"
+    desc += "✅ **Entrega Automática!**\n\n"
+    desc += f"**{nome}**\n"
+    if subtitulo:
+        desc += f"📦 *{subtitulo}*\n"
+    desc += "━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+    desc += bullets_txt
+    desc += "\n\n**📦 VOCÊ RECEBE**\n"
+    desc += "━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+    desc += recebe_txt
 
     e = discord.Embed(description=desc, color=0xED4245)
-    img = (produto.get("catalogo_salvo", {}) or {}).get("imagem") or produto.get("imagem")
-    if url_imagem_valida(img):
+    img = produto.get("imagem")
+    if img and url_imagem_valida(img):
         try: e.set_image(url=img)
         except: pass
     e.set_footer(text=f"🛒  {produto['nome']}  •  Escolha uma opção no menu abaixo", icon_url=bot.user.display_avatar.url)
@@ -1024,16 +1059,19 @@ class EscolherModoCatalogoView(discord.ui.View):
     @discord.ui.button(label="Usar o salvo", emoji="📋", style=discord.ButtonStyle.success)
     async def usar_salvo(self, i, b):
         try:
-            titulo = self.salvo.get("titulo", "")
-            bullets = self.salvo.get("bullets", "")
-            recebe = self.salvo.get("recebe", "")
-            aviso = self.salvo.get("aviso", "")
             prods = get_produtos()
             p = prods.get(self.pid)
             canal = i.guild.get_channel(int(self.canal_id))
             if not canal:
                 await i.response.send_message("❌ Canal não encontrado.", ephemeral=True); return
-            e = montar_embed_catalogo(titulo, bullets, recebe, aviso, p)
+
+            e = montar_embed_catalogo(
+                self.salvo.get("titulo", ""),
+                self.salvo.get("nome_sub", p.get("nome", "")),
+                self.salvo.get("bullets", ""),
+                self.salvo.get("recebe", ""),
+                p
+            )
             msg = await canal.send(embed=e, view=VerOpcoesView(self.pid))
             postados = get_postados()
             postados[str(msg.id)] = {"produto_id": self.pid, "canal_id": str(canal.id)}
@@ -1045,12 +1083,10 @@ class EscolherModoCatalogoView(discord.ui.View):
     @discord.ui.button(label="Editar antes de postar", emoji="✏️", style=discord.ButtonStyle.primary)
     async def editar(self, i, b):
         modal = PostarCatalogoModal(self.pid, self.canal_id, salvar=True)
-        # Preenche com valores salvos
         modal.titulo.default = self.salvo.get("titulo", "")
+        modal.nome_sub.default = self.salvo.get("nome_sub", "")
         modal.bullets.default = self.salvo.get("bullets", "")
         modal.recebe.default = self.salvo.get("recebe", "")
-        modal.aviso.default = self.salvo.get("aviso", "")
-        modal.imagem.default = self.salvo.get("imagem", "")
         await i.response.send_modal(modal)
 
     @discord.ui.button(label="Criar novo", emoji="🆕", style=discord.ButtonStyle.secondary)
@@ -1180,7 +1216,7 @@ class SelCanalPostarSelect(discord.ui.Select):
         salvo = p.get("catalogo_salvo")
         if salvo:
             await i.response.edit_message(
-                content=f"📢  **{p['nome']}** tem um catálogo salvo. O que deseja?",
+                content=f"📢  **{p['nome']}** já tem um catálogo salvo. O que deseja?",
                 view=EscolherModoCatalogoView(self.pid, self.values[0], salvo)
             )
         else:
