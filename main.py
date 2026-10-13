@@ -160,10 +160,8 @@ async def gerar_recibo_imagem(pedido):
         draw.text((165, 155), nome_cliente, font=f_medio, fill=branco)
         draw.text((165, 195), f"ID: {pedido['comprador_id']}", font=f_pequena, fill=cinza)
 
-        # Título
         draw.text((40, 280), "COMPRA REALIZADA", font=f_grande, fill=vermelho)
 
-        # Seção CARRINHO
         draw.text((40, 360), "CARRINHO", font=f_medio, fill=cinza)
         draw.line([(40, 395), (W - 40, 395)], fill=cinza_escuro, width=1)
 
@@ -186,7 +184,6 @@ async def gerar_recibo_imagem(pedido):
         w_txt = bbox[2] - bbox[0]
         draw.text((W - 40 - w_txt, 495), valor_txt, font=f_normal, fill=branco)
 
-        # Caixa VALOR PAGO
         box_y1, box_y2 = 570, 660
         draw.rectangle([(40, box_y1), (W - 40, box_y2)], fill=vermelho_escuro)
         draw.rectangle([(40, box_y1), (W - 40, box_y2)], outline=vermelho, width=2)
@@ -195,7 +192,6 @@ async def gerar_recibo_imagem(pedido):
         w_txt = bbox[2] - bbox[0]
         draw.text((W - 70 - w_txt, box_y1 + 22), valor_txt, font=f_grande, fill=branco)
 
-        # Detalhes
         draw.text((40, 710), "DETALHES", font=f_medio, fill=cinza)
         draw.line([(40, 745), (W - 40, 745)], fill=cinza_escuro, width=1)
 
@@ -209,12 +205,10 @@ async def gerar_recibo_imagem(pedido):
         draw.text((620, 765), "ENTREGA", font=f_pequena, fill=cinza)
         draw.text((620, 790), "Enviada no PV", font=f_normal, fill=(87, 242, 135))
 
-        # Rodapé
         draw.rectangle([(0, H - 80), (W, H)], fill=vermelho_escuro)
         draw.text((40, H - 55), "QZZ COMMUNITY #2K", font=f_medio, fill=branco)
         draw.text((W - 280, H - 50), "Obrigado pela compra 💚", font=f_pequena, fill=branco)
 
-        # Borda
         draw.rectangle([(0, 0), (W - 1, H - 1)], outline=vermelho, width=3)
 
         buf = io.BytesIO()
@@ -224,7 +218,7 @@ async def gerar_recibo_imagem(pedido):
     except Exception as e:
         print(f"[Recibo] erro: {e}")
         return None
-        
+
 # ═══════════════════════════════════════
 #  SHARPIFY
 # ═══════════════════════════════════════
@@ -299,9 +293,10 @@ async def atualizar_catalogo(pid):
     except Exception as e:
         print(f"[Catálogo] erro geral: {e}")
 
-# ⭐ AQUI — antes de "ENTREGA AUTOMÁTICA"
+# ═══════════════════════════════════════
+#  FECHAR THREAD EM BACKGROUND
+# ═══════════════════════════════════════
 async def fechar_thread_em(thread_id, segundos):
-    """Fecha a thread em background após X segundos"""
     await asyncio.sleep(segundos)
     try:
         thread = await bot.fetch_channel(int(thread_id))
@@ -312,7 +307,7 @@ async def fechar_thread_em(thread_id, segundos):
             print(f"[Thread] Já arquivada ou não encontrada: {thread_id}")
     except Exception as ex:
         print(f"[Thread] ❌ Erro ao arquivar {thread_id}: {type(ex).__name__}: {ex}")
-
+        
 # ═══════════════════════════════════════
 #  ENTREGA AUTOMÁTICA
 # ═══════════════════════════════════════
@@ -337,7 +332,7 @@ async def entregar_pedido(link_id):
     pedido["key_entregue"] = key
     pedido["pago_em"] = agora()
 
-    # ─── DM com key (design melhorado)
+    # ─── DM com key
     try:
         user = await bot.fetch_user(pedido["comprador_id"])
         if key:
@@ -369,8 +364,7 @@ async def entregar_pedido(link_id):
             e = discord.Embed(
                 title="✅ Pagamento Confirmado",
                 description=f"Seu pedido **#{pedido['id']}** foi aprovado.\nUm membro da equipe vai te entregar em breve.",
-                color=0x57F287,
-                timestamp=datetime.now()
+                color=0x57F287, timestamp=datetime.now()
             )
             await user.send(embed=e)
     except Exception as e:
@@ -402,9 +396,9 @@ async def entregar_pedido(link_id):
                     e = discord.Embed(
                         title="✅ Nova Compra Realizada!",
                         description=(
-                            f"👤  Cliente: {pedido['comprador_id'] and f'<@{pedido[chr(39)+chr(39)+chr(39)+chr(39)+chr(39)]}>' or '?'}\n"
+                            f"👤  Cliente: <@{pedido['comprador_id']}>\n"
                             f"📩  Key entregue no PV automaticamente."
-                        ).replace("'", "").replace("chr(39)+", "").replace("+chr(39)", "").replace("+", ""),
+                        ),
                         color=0x57F287, timestamp=datetime.now()
                     )
                     e.set_image(url=f"attachment://recibo_{pedido['id']}.png")
@@ -434,7 +428,7 @@ async def entregar_pedido(link_id):
 
     await atualizar_catalogo(pedido["produto_id"])
 
-        # ─── Fecha thread (em background)
+    # ─── Fecha thread (em background)
     if pedido.get("thread_id"):
         try:
             thread = bot.get_channel(int(pedido["thread_id"]))
@@ -483,12 +477,7 @@ async def cancelar_pedido(pedido_id, cancelado_por):
                     color=0xED4245, timestamp=datetime.now()
                 )
                 await thread.send(embed=e)
-                await asyncio.sleep(10)
-                try:
-                    thread = await bot.fetch_channel(int(pedido["thread_id"]))
-                    if thread and not thread.archived:
-                        await thread.edit(archived=True)
-                except: pass
+                asyncio.create_task(fechar_thread_em(pedido["thread_id"], 10))
         except Exception as e:
             print(f"[Cancelar/Thread] erro: {e}")
 
@@ -546,7 +535,37 @@ def embed_painel_admin(user):
     e.add_field(name="🏪  Loja", value=f"`{cfg.get('nome_loja', 'QZZ Vendas')}`", inline=True)
     e.set_footer(text="Sharpify + Supabase", icon_url=bot.user.display_avatar.url)
     return e
-    
+
+def montar_embed_catalogo(titulo, nome_sub, bullets, recebe, produto):
+    linhas_nome = [l.strip() for l in nome_sub.split("\n") if l.strip()]
+    nome = linhas_nome[0] if len(linhas_nome) > 0 else produto.get("nome", "")
+    subtitulo = linhas_nome[1] if len(linhas_nome) > 1 else ""
+
+    linhas_b = [l.strip() for l in bullets.split("\n") if l.strip()]
+    bullets_txt = "\n".join(linhas_b) if linhas_b else "—"
+    linhas_r = [l.strip() for l in recebe.split("\n") if l.strip()]
+    recebe_txt = "\n".join(linhas_r) if linhas_r else "—"
+
+    desc = f"🔴 **{titulo}**\n"
+    desc += "✅ **Entrega Automática!**\n\n"
+    desc += f"**{nome}**\n"
+    if subtitulo:
+        desc += f"📦 *{subtitulo}*\n"
+    desc += "━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+    desc += bullets_txt
+    desc += "\n\n**📦 VOCÊ RECEBE**\n"
+    desc += "━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+    desc += recebe_txt
+
+    e = discord.Embed(description=desc, color=0xED4245)
+    img = produto.get("imagem")
+    if img and url_imagem_valida(img):
+        try: e.set_image(url=img)
+        except: pass
+    e.set_footer(text=f"🛒  {produto['nome']}  •  Escolha uma opção no menu abaixo", icon_url=bot.user.display_avatar.url)
+    e.timestamp = datetime.now()
+    return e
+
 # ═══════════════════════════════════════
 #  MODAIS
 # ═══════════════════════════════════════
@@ -656,9 +675,6 @@ class DeletarKeysModal(discord.ui.Modal, title="🗑️ Deletar Keys"):
         await i.response.send_message(f"🗑️ **{antes - depois}** keys deletadas.\nRestam: `{depois}`", ephemeral=True)
         await atualizar_catalogo(self.pid)
 
-# ═══════════════════════════════════════
-#  MODAL DE CATÁLOGO (com salvamento)
-# ═══════════════════════════════════════
 class PostarCatalogoModal(discord.ui.Modal, title="📢 Conteúdo do Catálogo"):
     titulo = discord.ui.TextInput(
         label="Título (linha vermelha)",
@@ -727,37 +743,7 @@ class PostarCatalogoModal(discord.ui.Modal, title="📢 Conteúdo do Catálogo")
         postados[str(msg.id)] = {"produto_id": self.pid, "canal_id": str(canal.id)}
         set_postados(postados)
         await i.response.send_message(f"✅ Catálogo postado em {canal.mention}!", ephemeral=True)
-def montar_embed_catalogo(titulo, nome_sub, bullets, recebe, produto):
-    # nome_sub pode ter 1 ou 2 linhas (nome + subtítulo)
-    linhas_nome = [l.strip() for l in nome_sub.split("\n") if l.strip()]
-    nome = linhas_nome[0] if len(linhas_nome) > 0 else produto.get("nome", "")
-    subtitulo = linhas_nome[1] if len(linhas_nome) > 1 else ""
-
-    linhas_b = [l.strip() for l in bullets.split("\n") if l.strip()]
-    bullets_txt = "\n".join(linhas_b) if linhas_b else "—"
-    linhas_r = [l.strip() for l in recebe.split("\n") if l.strip()]
-    recebe_txt = "\n".join(linhas_r) if linhas_r else "—"
-
-    desc = f"🔴 **{titulo}**\n"
-    desc += "✅ **Entrega Automática!**\n\n"
-    desc += f"**{nome}**\n"
-    if subtitulo:
-        desc += f"📦 *{subtitulo}*\n"
-    desc += "━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
-    desc += bullets_txt
-    desc += "\n\n**📦 VOCÊ RECEBE**\n"
-    desc += "━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-    desc += recebe_txt
-
-    e = discord.Embed(description=desc, color=0xED4245)
-    img = produto.get("imagem")
-    if img and url_imagem_valida(img):
-        try: e.set_image(url=img)
-        except: pass
-    e.set_footer(text=f"🛒  {produto['nome']}  •  Escolha uma opção no menu abaixo", icon_url=bot.user.display_avatar.url)
-    e.timestamp = datetime.now()
-    return e
-    
+        
 # ═══════════════════════════════════════
 #  VIEW: CATÁLOGO
 # ═══════════════════════════════════════
@@ -869,27 +855,49 @@ class ProsseguirView(discord.ui.View):
 
     @discord.ui.button(label="Prosseguir para pagamento", emoji="➡️", style=discord.ButtonStyle.success)
     async def prosseguir(self, i, b):
-        pedidos = get_pedidos()
-        pedido = next((p for p in pedidos if p["id"] == self.pedido_id), None)
-        if not pedido:
-            await i.response.send_message("❌ Pedido não encontrado.", ephemeral=True); return
-        if i.user.id != pedido["comprador_id"]:
-            await i.response.send_message("❌ Só o comprador.", ephemeral=True); return
-        b.disabled = True
-        await i.response.edit_message(view=self)
-        e = discord.Embed(
-            title="💳  Método de Pagamento",
-            description=(
-                "Escolha como deseja pagar:\n\n"
-                "╭─────────────────────────────╮\n"
-                "│  💠  **Pix** — Aprovação na hora   │\n"
-                "│  ⚡  Entrega automática da key      │\n"
-                "╰─────────────────────────────╯"
-            ),
-            color=0xFEE75C
-        )
-        e.set_footer(text="Selecione abaixo", icon_url=bot.user.display_avatar.url)
-        await i.followup.send(embed=e, view=MetodoPagamentoView(self.pedido_id))
+        import sys, traceback
+        try:
+            print(f"🔥 [PROSSEGUIR] Iniciou pedido_id={self.pedido_id}", file=sys.stderr, flush=True)
+
+            pedidos = get_pedidos()
+            pedido = next((p for p in pedidos if p["id"] == self.pedido_id), None)
+            if not pedido:
+                await i.response.send_message("❌ Pedido não encontrado.", ephemeral=True); return
+            if i.user.id != pedido["comprador_id"]:
+                await i.response.send_message("❌ Só o comprador.", ephemeral=True); return
+
+            print(f"🔥 [PROSSEGUIR] Pedido OK #{pedido['id']}", file=sys.stderr, flush=True)
+
+            b.disabled = True
+            await i.response.edit_message(view=self)
+            print(f"🔥 [PROSSEGUIR] Botão desabilitado OK", file=sys.stderr, flush=True)
+
+            e = discord.Embed(
+                title="💳  Método de Pagamento",
+                description=(
+                    "Escolha como deseja pagar:\n\n"
+                    "╭─────────────────────────────╮\n"
+                    "│  💠  **Pix** — Aprovação na hora   │\n"
+                    "│  ⚡  Entrega automática da key      │\n"
+                    "╰─────────────────────────────╯"
+                ),
+                color=0xFEE75C
+            )
+            e.set_footer(text="Selecione abaixo", icon_url=bot.user.display_avatar.url)
+            print(f"🔥 [PROSSEGUIR] Embed montado OK", file=sys.stderr, flush=True)
+
+            view = MetodoPagamentoView(self.pedido_id)
+            print(f"🔥 [PROSSEGUIR] View criada OK", file=sys.stderr, flush=True)
+
+            await i.followup.send(embed=e, view=view)
+            print(f"🔥 [PROSSEGUIR] ✅ Mensagem enviada com sucesso!", file=sys.stderr, flush=True)
+
+        except Exception as ex:
+            print(f"🔥 [PROSSEGUIR] ❌ ERRO: {type(ex).__name__}: {ex}", file=sys.stderr, flush=True)
+            traceback.print_exc(file=sys.stderr)
+            try:
+                await i.followup.send(f"❌ Erro: `{type(ex).__name__}`\n```{str(ex)[:300]}```", ephemeral=True)
+            except: pass
 
 class MetodoPagamentoView(discord.ui.View):
     def __init__(self, pedido_id):
@@ -898,78 +906,101 @@ class MetodoPagamentoView(discord.ui.View):
 
     @discord.ui.button(label="Pix", emoji="💳", style=discord.ButtonStyle.primary)
     async def pix(self, i, b):
-        pedidos = get_pedidos()
-        pedido = next((p for p in pedidos if p["id"] == self.pedido_id), None)
-        if not pedido:
-            await i.response.send_message("❌ Não encontrado.", ephemeral=True); return
-        if i.user.id != pedido["comprador_id"]:
-            await i.response.send_message("❌ Só o comprador.", ephemeral=True); return
-        b.disabled = True
-        try: await i.response.edit_message(view=self)
-        except: pass
-        try: await i.followup.send("💳  Gerando seu Pix... ⏳", ephemeral=True)
-        except: pass
+        import sys, traceback
+        try:
+            print(f"🔥 [PIX] Iniciou pedido_id={self.pedido_id}", file=sys.stderr, flush=True)
 
-        resp, err = await sharpify_pagar(
-            f"{pedido['produto_nome']} - {pedido['variacao_nome']}",
-            f"Pedido #{pedido['id']}",
-            pedido["preco_final"]
-        )
+            pedidos = get_pedidos()
+            pedido = next((p for p in pedidos if p["id"] == self.pedido_id), None)
+            if not pedido:
+                await i.response.send_message("❌ Não encontrado.", ephemeral=True); return
+            if i.user.id != pedido["comprador_id"]:
+                await i.response.send_message("❌ Só o comprador.", ephemeral=True); return
 
-        if err or not resp:
-            await i.followup.send(f"❌ Erro ao gerar Pix.\n```{str(err)[:300]}```")
-            return
+            print(f"🔥 [PIX] Pedido OK", file=sys.stderr, flush=True)
 
-        d = resp.get("data", resp)
-        payment = d.get("payment") or {}
-        gdata = (payment.get("gateway") or {}).get("data") or {}
-        qr = gdata.get("qrCode") or ""
-        copia = gdata.get("code") or ""
+            b.disabled = True
+            try: await i.response.edit_message(view=self)
+            except Exception as ex: print(f"🔥 [PIX] edit_message erro: {ex}", file=sys.stderr, flush=True)
+            try: await i.followup.send("💳  Gerando seu Pix... ⏳", ephemeral=True)
+            except Exception as ex: print(f"🔥 [PIX] followup erro: {ex}", file=sys.stderr, flush=True)
 
-        pedido["payment_link_id"] = d.get("id")
-        pedido["status"] = "aguardando_pagamento"
-        set_pedidos(pedidos)
+            print(f"🔥 [PIX] Chamando sharpify_pagar...", file=sys.stderr, flush=True)
 
-        e = discord.Embed(
-            title="💳  Pagamento via Pix",
-            description=(
-                "**Escaneie o QR Code** com seu banco ou app.\n"
-                "Assim que o pagamento for confirmado, a key chega automaticamente. ⚡\n\n"
-                "╭─────────────────────────────╮\n"
-                f"│  🆔  Pedido: `#{pedido['id']}`\n"
-                f"│  💰  Valor: `R$ {pedido['preco_final']:.2f}`\n"
-                "╰─────────────────────────────╯"
-            ),
-            color=0x57F287, timestamp=datetime.now()
-        )
-        e.add_field(name="📦  Produto", value=f"**{pedido['produto_nome']}**\n└ {pedido['variacao_nome']}", inline=False)
-        e.set_footer(text="Aguardando pagamento... ⏳", icon_url=bot.user.display_avatar.url)
+            resp, err = await sharpify_pagar(
+                f"{pedido['produto_nome']} - {pedido['variacao_nome']}",
+                f"Pedido #{pedido['id']}",
+                pedido["preco_final"]
+            )
 
-        enviado = False
-        if qr and qr.startswith("data:image"):
+            if err or not resp:
+                await i.followup.send(f"❌ Erro ao gerar Pix.\n```{str(err)[:300]}```")
+                return
+
+            print(f"🔥 [PIX] Sharpify respondeu OK", file=sys.stderr, flush=True)
+
+            d = resp.get("data", resp)
+            payment = d.get("payment") or {}
+            gdata = (payment.get("gateway") or {}).get("data") or {}
+            qr = gdata.get("qrCode") or ""
+            copia = gdata.get("code") or ""
+
+            pedido["payment_link_id"] = d.get("id")
+            pedido["status"] = "aguardando_pagamento"
+            set_pedidos(pedidos)
+
+            e = discord.Embed(
+                title="💳  Pagamento via Pix",
+                description=(
+                    "**Escaneie o QR Code** com seu banco ou app.\n"
+                    "Assim que o pagamento for confirmado, a key chega automaticamente. ⚡\n\n"
+                    "╭─────────────────────────────╮\n"
+                    f"│  🆔  Pedido: `#{pedido['id']}`\n"
+                    f"│  💰  Valor: `R$ {pedido['preco_final']:.2f}`\n"
+                    "╰─────────────────────────────╯"
+                ),
+                color=0x57F287, timestamp=datetime.now()
+            )
+            e.add_field(name="📦  Produto", value=f"**{pedido['produto_nome']}**\n└ {pedido['variacao_nome']}", inline=False)
+            e.set_footer(text="Aguardando pagamento... ⏳", icon_url=bot.user.display_avatar.url)
+
+            enviado = False
+            if qr and qr.startswith("data:image"):
+                try:
+                    header, b64 = qr.split(",", 1)
+                    img_bytes = base64.b64decode(b64)
+                    file = discord.File(io.BytesIO(img_bytes), filename="qrcode.png")
+                    e.set_image(url="attachment://qrcode.png")
+                    await i.followup.send(embed=e, file=file, view=PixAcoesView(pedido["id"], copia))
+                    enviado = True
+                    print(f"🔥 [PIX] QR enviado", file=sys.stderr, flush=True)
+                except Exception as ex: print(f"🔥 [QR] erro: {ex}", file=sys.stderr, flush=True)
+            if not enviado:
+                await i.followup.send(embed=e, view=PixAcoesView(pedido["id"], copia))
+                print(f"🔥 [PIX] Embed enviado sem QR", file=sys.stderr, flush=True)
+
+            if copia:
+                try:
+                    e_pv = discord.Embed(
+                        title="📋  Pix Copia e Cola",
+                        description=(
+                            f"**Pedido #{pedido['id']}**\n\n"
+                            f"```\n{copia}\n```\n"
+                            "_Copie o código acima e cole no seu banco._"
+                        ),
+                        color=0x57F287
+                    )
+                    await i.user.send(embed=e_pv)
+                    print(f"🔥 [PIX] ✅ Copia e cola enviado no PV", file=sys.stderr, flush=True)
+                except Exception as ex_pv: print(f"🔥 [PV] erro: {ex_pv}", file=sys.stderr, flush=True)
+
+            print(f"🔥 [PIX] ✅✅ CONCLUÍDO COM SUCESSO!", file=sys.stderr, flush=True)
+
+        except Exception as ex:
+            print(f"🔥 [PIX] ❌ ERRO: {type(ex).__name__}: {ex}", file=sys.stderr, flush=True)
+            traceback.print_exc(file=sys.stderr)
             try:
-                header, b64 = qr.split(",", 1)
-                img_bytes = base64.b64decode(b64)
-                file = discord.File(io.BytesIO(img_bytes), filename="qrcode.png")
-                e.set_image(url="attachment://qrcode.png")
-                await i.followup.send(embed=e, file=file, view=PixAcoesView(pedido["id"], copia))
-                enviado = True
-            except Exception as ex: print(f"[QR] {ex}")
-        if not enviado:
-            await i.followup.send(embed=e, view=PixAcoesView(pedido["id"], copia))
-
-        if copia:
-            try:
-                e_pv = discord.Embed(
-                    title="📋  Pix Copia e Cola",
-                    description=(
-                        f"**Pedido #{pedido['id']}**\n\n"
-                        f"```\n{copia}\n```\n"
-                        "_Copie o código acima e cole no seu banco._"
-                    ),
-                    color=0x57F287
-                )
-                await i.user.send(embed=e_pv)
+                await i.followup.send(f"❌ Erro: `{type(ex).__name__}`\n```{str(ex)[:300]}```", ephemeral=True)
             except: pass
 
 class PixAcoesView(discord.ui.View):
