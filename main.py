@@ -108,17 +108,17 @@ def url_imagem_valida(url):
     return url.lower().endswith(ext) or "cdn.discordapp.com" in url or "i.imgur.com" in url or "media.discordapp.net" in url
 
 # ═══════════════════════════════════════
-#  GERAÇÃO DE IMAGEM DO RECIBO
+#  GERAR IMAGEM DO RECIBO
 # ═══════════════════════════════════════
 async def gerar_recibo_imagem(pedido):
     try:
-        W, H = 800, 900
-        fundo = (13, 13, 13)
-        vermelho = (237, 66, 69)
-        vermelho_escuro = (120, 30, 32)
-        branco = (240, 240, 240)
-        cinza = (140, 140, 140)
-        cinza_escuro = (30, 30, 30)
+        W, H = 900, 950
+        fundo = (15, 15, 18)
+        vermelho = (220, 53, 69)
+        vermelho_escuro = (90, 20, 25)
+        branco = (245, 245, 245)
+        cinza = (150, 150, 155)
+        cinza_escuro = (35, 35, 40)
 
         img = Image.new("RGB", (W, H), fundo)
         draw = ImageDraw.Draw(img)
@@ -128,8 +128,8 @@ async def gerar_recibo_imagem(pedido):
                      "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
                      "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf"]:
             try:
-                f_titulo = ImageFont.truetype(nome, 26)
-                f_grande = ImageFont.truetype(nome, 34)
+                f_titulo = ImageFont.truetype(nome, 28)
+                f_grande = ImageFont.truetype(nome, 36)
                 f_medio = ImageFont.truetype(nome, 22)
                 f_normal = ImageFont.truetype(nome, 18)
                 f_pequena = ImageFont.truetype(nome, 14)
@@ -138,68 +138,83 @@ async def gerar_recibo_imagem(pedido):
         if not f_titulo:
             f_titulo = f_grande = f_medio = f_normal = f_pequena = ImageFont.load_default()
 
-        draw.rectangle([(0, 0), (W, 80)], fill=vermelho_escuro)
-        draw.text((30, 25), "QZZ VENDAS COMMUNITY", font=f_titulo, fill=branco)
-        draw.text((W - 90, 32), "APP", font=f_normal, fill=branco)
-        draw.line([(30, 100), (W - 30, 100)], fill=vermelho, width=2)
+        # Header
+        draw.rectangle([(0, 0), (W, 90)], fill=vermelho_escuro)
+        draw.rectangle([(0, 90), (W, 94)], fill=vermelho)
+        draw.text((40, 30), "QZZ VENDAS COMMUNITY", font=f_titulo, fill=branco)
+        draw.text((W - 100, 38), "APP", font=f_normal, fill=branco)
 
+        # Avatar
         try:
             user = await bot.fetch_user(pedido["comprador_id"])
             avatar_bytes = await user.display_avatar.replace(size=128, format="png").read()
-            avatar = Image.open(io.BytesIO(avatar_bytes)).convert("RGBA").resize((90, 90), Image.LANCZOS)
-            mask = Image.new("L", (90, 90), 0)
-            ImageDraw.Draw(mask).ellipse((0, 0, 90, 90), fill=255)
-            img.paste(avatar, (30, 130), mask)
+            avatar = Image.open(io.BytesIO(avatar_bytes)).convert("RGBA").resize((100, 100), Image.LANCZOS)
+            mask = Image.new("L", (100, 100), 0)
+            ImageDraw.Draw(mask).ellipse((0, 0, 100, 100), fill=255)
+            img.paste(avatar, (40, 140), mask)
         except Exception as e:
-            print(f"[Avatar] erro: {e}")
-            draw.ellipse([(30, 130), (120, 220)], fill=cinza_escuro)
+            draw.ellipse([(40, 140), (140, 240)], fill=cinza_escuro)
 
         nome_cliente = pedido.get("comprador_nome", "Cliente")
-        if len(nome_cliente) > 22: nome_cliente = nome_cliente[:22] + "..."
-        draw.text((140, 145), nome_cliente, font=f_medio, fill=branco)
-        draw.text((140, 180), f"ID: {pedido['comprador_id']}", font=f_pequena, fill=cinza)
+        if len(nome_cliente) > 24: nome_cliente = nome_cliente[:24] + "..."
+        draw.text((165, 155), nome_cliente, font=f_medio, fill=branco)
+        draw.text((165, 195), f"ID: {pedido['comprador_id']}", font=f_pequena, fill=cinza)
 
-        draw.text((30, 260), "COMPRA REALIZADA", font=f_grande, fill=vermelho)
+        # Título
+        draw.text((40, 280), "COMPRA REALIZADA", font=f_grande, fill=vermelho)
 
-        draw.text((30, 340), "CARRINHO", font=f_medio, fill=cinza)
-        produto_txt = f"{pedido['produto_nome']} | {pedido['variacao_nome']}"
-        if len(produto_txt) > 55: produto_txt = produto_txt[:55] + "..."
-        draw.text((30, 375), produto_txt, font=f_normal, fill=branco)
+        # Seção CARRINHO
+        draw.text((40, 360), "CARRINHO", font=f_medio, fill=cinza)
+        draw.line([(40, 395), (W - 40, 395)], fill=cinza_escuro, width=1)
+
+        produto_txt = f"{pedido['produto_nome']}"
+        if len(produto_txt) > 50: produto_txt = produto_txt[:50] + "..."
+        draw.text((40, 415), produto_txt, font=f_normal, fill=branco)
+
+        var_txt = f"└ {pedido['variacao_nome']}"
+        if len(var_txt) > 50: var_txt = var_txt[:50] + "..."
+        draw.text((40, 445), var_txt, font=f_pequena, fill=cinza)
 
         valor_txt = f"R$ {pedido['preco_final']:.2f}".replace(".", ",")
         bbox = draw.textbbox((0, 0), valor_txt, font=f_medio)
         w_txt = bbox[2] - bbox[0]
-        draw.text((W - 30 - w_txt, 372), valor_txt, font=f_medio, fill=branco)
+        draw.text((W - 40 - w_txt, 415), valor_txt, font=f_medio, fill=branco)
 
-        draw.line([(W - 220, 415), (W - 30, 415)], fill=cinza_escuro, width=1)
-        draw.text((30, 435), "SUBTOTAL", font=f_normal, fill=cinza)
+        draw.line([(W - 250, 480), (W - 40, 480)], fill=cinza_escuro, width=1)
+        draw.text((40, 495), "SUBTOTAL", font=f_normal, fill=cinza)
         bbox = draw.textbbox((0, 0), valor_txt, font=f_normal)
         w_txt = bbox[2] - bbox[0]
-        draw.text((W - 30 - w_txt, 435), valor_txt, font=f_normal, fill=branco)
+        draw.text((W - 40 - w_txt, 495), valor_txt, font=f_normal, fill=branco)
 
-        box_y1, box_y2 = 510, 590
-        draw.rectangle([(30, box_y1), (W - 30, box_y2)], fill=vermelho_escuro)
-        draw.rectangle([(30, box_y1), (W - 30, box_y2)], outline=vermelho, width=2)
-        draw.text((55, box_y1 + 25), "VALOR PAGO", font=f_medio, fill=branco)
+        # Caixa VALOR PAGO
+        box_y1, box_y2 = 570, 660
+        draw.rectangle([(40, box_y1), (W - 40, box_y2)], fill=vermelho_escuro)
+        draw.rectangle([(40, box_y1), (W - 40, box_y2)], outline=vermelho, width=2)
+        draw.text((70, box_y1 + 30), "VALOR PAGO", font=f_medio, fill=branco)
         bbox = draw.textbbox((0, 0), valor_txt, font=f_grande)
         w_txt = bbox[2] - bbox[0]
-        draw.text((W - 55 - w_txt, box_y1 + 18), valor_txt, font=f_grande, fill=branco)
+        draw.text((W - 70 - w_txt, box_y1 + 22), valor_txt, font=f_grande, fill=branco)
 
-        draw.text((30, 640), "DETALHES", font=f_medio, fill=cinza)
-        draw.line([(30, 675), (W - 30, 675)], fill=cinza_escuro, width=1)
+        # Detalhes
+        draw.text((40, 710), "DETALHES", font=f_medio, fill=cinza)
+        draw.line([(40, 745), (W - 40, 745)], fill=cinza_escuro, width=1)
 
-        draw.text((30, 690), "ID do Pedido", font=f_pequena, fill=cinza)
-        draw.text((30, 710), f"#{pedido['id']}", font=f_normal, fill=branco)
+        draw.text((40, 765), "ID DO PEDIDO", font=f_pequena, fill=cinza)
+        draw.text((40, 790), f"#{pedido['id']}", font=f_normal, fill=branco)
 
-        draw.text((280, 690), "Data", font=f_pequena, fill=cinza)
-        draw.text((280, 710), pedido.get("pago_em", agora()), font=f_normal, fill=branco)
+        draw.text((320, 765), "DATA", font=f_pequena, fill=cinza)
+        data_str = pedido.get("pago_em", agora())[:16]
+        draw.text((320, 790), data_str, font=f_normal, fill=branco)
 
-        draw.text((520, 690), "Entrega", font=f_pequena, fill=cinza)
-        draw.text((520, 710), "Enviada no PV", font=f_normal, fill=(87, 242, 135))
+        draw.text((620, 765), "ENTREGA", font=f_pequena, fill=cinza)
+        draw.text((620, 790), "Enviada no PV", font=f_normal, fill=(87, 242, 135))
 
-        draw.line([(30, 800), (W - 30, 800)], fill=vermelho, width=2)
-        draw.text((30, 820), "QZZ COMMUNITY #2K", font=f_medio, fill=cinza)
-        draw.text((W - 220, 825), "Obrigado pela compra", font=f_pequena, fill=cinza)
+        # Rodapé
+        draw.rectangle([(0, H - 80), (W, H)], fill=vermelho_escuro)
+        draw.text((40, H - 55), "QZZ COMMUNITY #2K", font=f_medio, fill=branco)
+        draw.text((W - 280, H - 50), "Obrigado pela compra 💚", font=f_pequena, fill=branco)
+
+        # Borda
         draw.rectangle([(0, 0), (W - 1, H - 1)], outline=vermelho, width=3)
 
         buf = io.BytesIO()
@@ -209,7 +224,7 @@ async def gerar_recibo_imagem(pedido):
     except Exception as e:
         print(f"[Recibo] erro: {e}")
         return None
-
+        
 # ═══════════════════════════════════════
 #  SHARPIFY
 # ═══════════════════════════════════════
@@ -262,9 +277,9 @@ async def webhook_sharpify(request):
     except Exception as e:
         print(f"[Webhook] erro: {e}")
         return web.Response(status=500, text="error")
-        
+
 # ═══════════════════════════════════════
-#  ATUALIZAR CATÁLOGO POSTADO
+#  ATUALIZAR CATÁLOGO
 # ═══════════════════════════════════════
 async def atualizar_catalogo(pid):
     try:
@@ -279,7 +294,6 @@ async def atualizar_catalogo(pid):
                 msg = await canal.fetch_message(int(msg_id))
                 nova_view = VerOpcoesView(pid)
                 await msg.edit(view=nova_view)
-                print(f"[Catálogo] Atualizado produto {pid} na msg {msg_id}")
             except Exception as ex:
                 print(f"[Catálogo] erro msg {msg_id}: {type(ex).__name__}: {ex}")
     except Exception as e:
@@ -309,27 +323,42 @@ async def entregar_pedido(link_id):
     pedido["key_entregue"] = key
     pedido["pago_em"] = agora()
 
-    # ─── DM com key
+    # ─── DM com key (design melhorado)
     try:
         user = await bot.fetch_user(pedido["comprador_id"])
         if key:
             e = discord.Embed(
-                title="🎉 Compra Aprovada!",
-                description="**Obrigado pela sua compra!**\n━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n🔑 **SUA KEY ESTÁ ABAIXO** 👇",
-                color=0x57F287, timestamp=datetime.now()
+                title="🎉 Pagamento Confirmado",
+                description=(
+                    "**Sua compra foi aprovada com sucesso!**\n\n"
+                    "╭─────────────────────────────╮\n"
+                    "│  🔑 **SUA KEY ESTÁ ABAIXO**     │\n"
+                    "╰─────────────────────────────╯"
+                ),
+                color=0x57F287,
+                timestamp=datetime.now()
             )
-            e.add_field(name="📦 Produto", value=pedido['produto_nome'], inline=True)
-            e.add_field(name="🎁 Opção", value=pedido['variacao_nome'], inline=True)
-            e.add_field(name="💰 Valor", value=f"`R$ {pedido['preco_final']:.2f}`", inline=True)
-            e.add_field(name="🆔 Pedido", value=f"`#{pedido['id']}`", inline=True)
-            e.add_field(name="📅 Data", value=f"`{agora()}`", inline=True)
-            e.add_field(name="\u200b", value="\u200b", inline=True)
-            e.add_field(name="🔑 Key", value=f"```\n{key}\n```", inline=False)
-            e.add_field(name="⚠️ Importante", value="Guarde esta key em local seguro.", inline=False)
+            e.add_field(name="📦  Produto", value=f"```{pedido['produto_nome']}```", inline=False)
+            e.add_field(name="🎁  Opção", value=f"```{pedido['variacao_nome']}```", inline=True)
+            e.add_field(name="💰  Valor", value=f"`R$ {pedido['preco_final']:.2f}`", inline=True)
+            e.add_field(name="🆔  Pedido", value=f"`#{pedido['id']}`", inline=True)
+            e.add_field(name="\u200b", value="\u200b", inline=False)
+            e.add_field(name="🔑  Key", value=f"```\n{key}\n```", inline=False)
+            e.add_field(
+                name="⚠️  Importante",
+                value="> Guarde esta key em local seguro.\n> Não compartilhe com ninguém.",
+                inline=False
+            )
             e.set_footer(text="QZZ Vendas • Obrigado pela preferência 💚", icon_url=bot.user.display_avatar.url)
             await user.send(embed=e)
         else:
-            await user.send(f"✅ Pagamento do pedido **#{pedido['id']}** confirmado!")
+            e = discord.Embed(
+                title="✅ Pagamento Confirmado",
+                description=f"Seu pedido **#{pedido['id']}** foi aprovado.\nUm membro da equipe vai te entregar em breve.",
+                color=0x57F287,
+                timestamp=datetime.now()
+            )
+            await user.send(embed=e)
     except Exception as e:
         print(f"[DM] erro: {e}")
 
@@ -358,7 +387,10 @@ async def entregar_pedido(link_id):
                     file = discord.File(buf, filename=f"recibo_{pedido['id']}.png")
                     e = discord.Embed(
                         title="✅ Nova Compra Realizada!",
-                        description=f"👤 <@{pedido['comprador_id']}> acabou de comprar!\n📩 Key enviada no PV.",
+                        description=(
+                            f"👤  Cliente: {pedido['comprador_id'] and f'<@{pedido[chr(39)+chr(39)+chr(39)+chr(39)+chr(39)]}>' or '?'}\n"
+                            f"📩  Key entregue no PV automaticamente."
+                        ).replace("'", "").replace("chr(39)+", "").replace("+chr(39)", "").replace("+", ""),
                         color=0x57F287, timestamp=datetime.now()
                     )
                     e.set_image(url=f"attachment://recibo_{pedido['id']}.png")
@@ -371,14 +403,18 @@ async def entregar_pedido(link_id):
     if CANAL_LOGS:
         ch = bot.get_channel(CANAL_LOGS)
         if ch:
-            e = discord.Embed(title="💸 Nova Venda Aprovada!", description="━━━━━━━━━━━━━━━━━━━━━━━━━━", color=0x57F287, timestamp=datetime.now())
-            e.add_field(name="🆔 Pedido", value=f"`#{pedido['id']}`", inline=True)
-            e.add_field(name="👤 Cliente", value=f"<@{pedido['comprador_id']}>", inline=True)
-            e.add_field(name="💰 Valor", value=f"`R$ {pedido['preco_final']:.2f}`", inline=True)
-            e.add_field(name="📦 Produto", value=pedido["produto_nome"], inline=False)
-            e.add_field(name="🎁 Opção", value=pedido["variacao_nome"], inline=True)
-            e.add_field(name="🎭 Cargo", value=pedido.get("cargo_dado", "—"), inline=True)
-            e.add_field(name="🔑 Key", value=f"||`{key}`||" if key else "❌ Sem estoque", inline=False)
+            e = discord.Embed(
+                title="💸 Nova Venda Aprovada",
+                description="╭─────────────────────────────╮\n│  📊  **DETALHES DA VENDA**       │\n╰─────────────────────────────╯",
+                color=0x57F287, timestamp=datetime.now()
+            )
+            e.add_field(name="🆔  Pedido", value=f"`#{pedido['id']}`", inline=True)
+            e.add_field(name="👤  Cliente", value=f"<@{pedido['comprador_id']}>", inline=True)
+            e.add_field(name="💰  Valor", value=f"`R$ {pedido['preco_final']:.2f}`", inline=True)
+            e.add_field(name="📦  Produto", value=pedido["produto_nome"], inline=True)
+            e.add_field(name="🎁  Opção", value=pedido["variacao_nome"], inline=True)
+            e.add_field(name="🎭  Cargo dado", value=pedido.get("cargo_dado", "—"), inline=True)
+            e.add_field(name="🔑  Key Entregue", value=f"||`{key}`||" if key else "❌ Sem estoque", inline=False)
             e.set_footer(text="QZZ Vendas • Log automático", icon_url=bot.user.display_avatar.url)
             await ch.send(embed=e)
 
@@ -391,7 +427,13 @@ async def entregar_pedido(link_id):
             if thread:
                 e = discord.Embed(
                     title="✅ Pagamento Aprovado!",
-                    description="━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n🎉 Sua compra foi confirmada!\n\n📩 **A key foi enviada no seu PV.**\n\n**Thread fechada em 30s...**",
+                    description=(
+                        "╭─────────────────────────────╮\n"
+                        "│  🎉  **COMPRA CONFIRMADA**      │\n"
+                        "╰─────────────────────────────╯\n\n"
+                        "📩  **A key foi enviada no seu PV.**\n\n"
+                        "**Thread fechada em 30 segundos...**"
+                    ),
                     color=0x57F287, timestamp=datetime.now()
                 )
                 await thread.send(embed=e)
@@ -423,14 +465,13 @@ async def cancelar_pedido(pedido_id, cancelado_por):
     pedido["cancelado_por"] = str(cancelado_por)
     set_pedidos(pedidos)
 
-    # Fecha thread
     if pedido.get("thread_id"):
         try:
             thread = bot.get_channel(int(pedido["thread_id"]))
             if thread:
                 e = discord.Embed(
                     title="❌ Pedido Cancelado",
-                    description="O pedido foi cancelado pelo cliente.\n\n**A thread será fechada em 10 segundos...**",
+                    description="O pedido foi cancelado.\n\n**Thread fechada em 10 segundos...**",
                     color=0xED4245, timestamp=datetime.now()
                 )
                 await thread.send(embed=e)
@@ -443,17 +484,13 @@ async def cancelar_pedido(pedido_id, cancelado_por):
         except Exception as e:
             print(f"[Cancelar/Thread] erro: {e}")
 
-    # Log
     if CANAL_LOGS:
         ch = bot.get_channel(CANAL_LOGS)
         if ch:
             e = discord.Embed(title="❌ Pedido Cancelado", color=0xED4245, timestamp=datetime.now())
-            e.add_field(name="🆔 Pedido", value=f"`#{pedido_id}`", inline=True)
-            e.add_field(name="👤 Cliente", value=f"<@{pedido['comprador_id']}>", inline=True)
-            e.add_field(name="❌ Cancelado por", value=str(cancelado_por), inline=True)
-            e.add_field(name="📦 Produto", value=pedido["produto_nome"], inline=True)
-            e.add_field(name="🎁 Opção", value=pedido["variacao_nome"], inline=True)
-            e.add_field(name="💰 Valor", value=f"`R$ {pedido['preco_final']:.2f}`", inline=True)
+            e.add_field(name="🆔  Pedido", value=f"`#{pedido_id}`", inline=True)
+            e.add_field(name="👤  Cliente", value=f"<@{pedido['comprador_id']}>", inline=True)
+            e.add_field(name="❌  Cancelado por", value=str(cancelado_por), inline=True)
             await ch.send(embed=e)
 
     return True, "Pedido cancelado com sucesso."
@@ -486,16 +523,22 @@ def embed_painel_admin(user):
         for v in p.get("variacoes", {}).values():
             total_keys += len(v.get("keys", []))
     e = discord.Embed(
-        title="🛠️ Painel de Administração",
-        description=f"**Bem-vindo, {user.display_name}!**\n━━━━━━━━━━━━━━━━━━━━━━━━━━\n\nUse os botões abaixo:",
-        color=cfg.get("cor_principal", 0x5865F2), timestamp=datetime.now()
+        title="🛠️  Painel de Administração",
+        description=(
+            f"Olá, **{user.display_name}**!\n\n"
+            "╭─────────────────────────────╮\n"
+            "│  🏪  Gerencie sua loja abaixo   │\n"
+            "╰─────────────────────────────╯"
+        ),
+        color=cfg.get("cor_principal", 0x5865F2),
+        timestamp=datetime.now()
     )
-    e.add_field(name="📦 Produtos", value=f"`{len(prods)}`", inline=True)
-    e.add_field(name="🔑 Keys", value=f"`{total_keys}`", inline=True)
-    e.add_field(name="🏪 Loja", value=f"`{cfg.get('nome_loja', '—')}`", inline=True)
+    e.add_field(name="📦  Produtos", value=f"`{len(prods)}`", inline=True)
+    e.add_field(name="🔑  Keys", value=f"`{total_keys}`", inline=True)
+    e.add_field(name="🏪  Loja", value=f"`{cfg.get('nome_loja', 'QZZ Vendas')}`", inline=True)
     e.set_footer(text="Sharpify + Supabase", icon_url=bot.user.display_avatar.url)
     return e
-
+    
 # ═══════════════════════════════════════
 #  MODAIS
 # ═══════════════════════════════════════
@@ -510,13 +553,14 @@ class CriarProdutoModal(discord.ui.Modal, title="➕ Criar Produto"):
             await i.response.send_message("❌ Sem permissão.", ephemeral=True); return
         cat = self.categoria.value.lower().strip()
         if cat not in get_catalogos():
-            await i.response.send_message(f"❌ Categoria inválida.", ephemeral=True); return
+            await i.response.send_message(f"❌ Categoria inválida. Use: `{'`, `'.join(get_catalogos().keys())}`", ephemeral=True); return
         prods = get_produtos()
         pid = novo_id()
         prods[pid] = {
             "id": pid, "nome": self.nome.value, "descricao": self.descricao.value,
             "imagem": self.imagem.value or None, "categoria": cat,
-            "variacoes": {}, "ativo": True, "criado_em": agora()
+            "variacoes": {}, "ativo": True, "criado_em": agora(),
+            "catalogo_salvo": None
         }
         set_produtos(prods)
         await i.response.send_message(f"✅ Produto **{self.nome.value}** criado! ID: `{pid}`", ephemeral=True)
@@ -604,17 +648,21 @@ class DeletarKeysModal(discord.ui.Modal, title="🗑️ Deletar Keys"):
         await i.response.send_message(f"🗑️ **{antes - depois}** keys deletadas.\nRestam: `{depois}`", ephemeral=True)
         await atualizar_catalogo(self.pid)
 
-class PostarCatalogoModal(discord.ui.Modal, title="📢 Postar Catálogo"):
-    titulo = discord.ui.TextInput(label="Título do produto", required=True, max_length=150)
+# ═══════════════════════════════════════
+#  MODAL DE CATÁLOGO (com salvamento)
+# ═══════════════════════════════════════
+class PostarCatalogoModal(discord.ui.Modal, title="📢 Conteúdo do Catálogo"):
+    titulo = discord.ui.TextInput(label="Título", required=True, max_length=150)
     bullets = discord.ui.TextInput(label="✅ Benefícios (1 por linha)", style=discord.TextStyle.paragraph, required=True, max_length=1000)
     recebe = discord.ui.TextInput(label="📦 O que recebe (1 por linha)", style=discord.TextStyle.paragraph, required=True, max_length=800)
     aviso = discord.ui.TextInput(label="⚠️ Aviso (opcional)", style=discord.TextStyle.paragraph, required=False, max_length=400)
     imagem = discord.ui.TextInput(label="URL da imagem/banner", required=False, max_length=500)
 
-    def __init__(self, pid, canal_id):
+    def __init__(self, pid, canal_id, salvar=True):
         super().__init__()
         self.pid = pid
         self.canal_id = canal_id
+        self.salvar = salvar
 
     async def on_submit(self, i):
         if not is_staff(i.user):
@@ -627,30 +675,54 @@ class PostarCatalogoModal(discord.ui.Modal, title="📢 Postar Catálogo"):
         if not canal:
             await i.response.send_message("❌ Canal não encontrado.", ephemeral=True); return
 
-        linhas = [l.strip() for l in self.bullets.value.split("\n") if l.strip()]
-        bullets_txt = "\n".join(f"✅ {l}" for l in linhas)
-        recebe_linhas = [l.strip() for l in self.recebe.value.split("\n") if l.strip()]
-        recebe_txt = "\n".join(f"✅ {l}" for l in recebe_linhas)
+        # Salva o conteúdo
+        if self.salvar:
+            p["catalogo_salvo"] = {
+                "titulo": self.titulo.value,
+                "bullets": self.bullets.value,
+                "recebe": self.recebe.value,
+                "aviso": self.aviso.value,
+                "imagem": self.imagem.value,
+                "atualizado_em": agora()
+            }
+            set_produtos(prods)
 
-        desc = f"**{self.titulo.value}**\n━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n{bullets_txt}"
-        if self.aviso.value.strip(): desc += f"\n\n⚠️ *{self.aviso.value.strip()}*"
-        desc += f"\n\n**📦 VOCÊ RECEBE**\n━━━━━━━━━━━━━━━━━━━━━━━━━━\n{recebe_txt}"
-
-        e = discord.Embed(description=desc, color=0xED4245)
-        img = (self.imagem.value or p.get("imagem") or "").strip()
-        if url_imagem_valida(img):
-            try: e.set_image(url=img)
-            except: pass
-        e.set_footer(text=f"🛒 {p['nome']}  •  Escolha uma opção", icon_url=bot.user.display_avatar.url)
-        e.timestamp = datetime.now()
-
+        # Monta o embed
+        e = montar_embed_catalogo(self.titulo.value, self.bullets.value, self.recebe.value, self.aviso.value, p)
         view = VerOpcoesView(self.pid)
         msg = await canal.send(embed=e, view=view)
+
         postados = get_postados()
         postados[str(msg.id)] = {"produto_id": self.pid, "canal_id": str(canal.id)}
         set_postados(postados)
         await i.response.send_message(f"✅ Catálogo postado em {canal.mention}!", ephemeral=True)
 
+def montar_embed_catalogo(titulo, bullets, recebe, aviso, produto):
+    linhas_b = [l.strip() for l in bullets.split("\n") if l.strip()]
+    bullets_txt = "\n".join(f"✅  **{l}**" for l in linhas_b) if linhas_b else "—"
+    linhas_r = [l.strip() for l in recebe.split("\n") if l.strip()]
+    recebe_txt = "\n".join(f"✅  {l}" for l in linhas_r) if linhas_r else "—"
+
+    desc = f"## {titulo}\n"
+    desc += "╭─────────────────────────────╮\n"
+    desc += bullets_txt + "\n"
+    desc += "╰─────────────────────────────╯\n"
+    if aviso.strip():
+        desc += f"\n> ⚠️  *{aviso.strip()}*\n"
+    desc += "\n### 📦  VOCÊ RECEBE\n"
+    desc += "╭─────────────────────────────╮\n"
+    desc += recebe_txt + "\n"
+    desc += "╰─────────────────────────────╯"
+
+    e = discord.Embed(description=desc, color=0xED4245)
+    img = (produto.get("catalogo_salvo", {}) or {}).get("imagem") or produto.get("imagem")
+    if url_imagem_valida(img):
+        try: e.set_image(url=img)
+        except: pass
+    e.set_footer(text=f"🛒  {produto['nome']}  •  Escolha uma opção no menu abaixo", icon_url=bot.user.display_avatar.url)
+    e.timestamp = datetime.now()
+    return e
+    
 # ═══════════════════════════════════════
 #  VIEW: CATÁLOGO
 # ═══════════════════════════════════════
@@ -677,7 +749,7 @@ class VerOpcoesSelect(discord.ui.Select):
                 ))
         if not opts:
             opts = [discord.SelectOption(label="Sem opções", value="none")]
-        super().__init__(placeholder="🎁 Selecione uma opção...", options=opts, min_values=1, max_values=1)
+        super().__init__(placeholder="🎁  Selecione uma opção para comprar...", options=opts, min_values=1, max_values=1)
 
     async def callback(self, i):
         if self.values[0] == "none":
@@ -731,20 +803,23 @@ async def abrir_thread_compra(i, pid, vid):
     set_pedidos(pedidos)
 
     e = discord.Embed(
-        title="🛒 Detalhes do Pedido",
-        description="**Confira antes de prosseguir:**\n━━━━━━━━━━━━━━━━━━━━━━━━━━",
+        title="🛒  Detalhes do Pedido",
+        description=(
+            "Confira as informações abaixo:\n\n"
+            "╭─────────────────────────────╮\n"
+            f"│  👤  Cliente: {i.user.mention}\n"
+            f"│  🆔  Pedido: `#{num}`\n"
+            "╰─────────────────────────────╯"
+        ),
         color=0x5865F2, timestamp=datetime.now()
     )
-    e.add_field(name="👤 Cliente", value=i.user.mention, inline=True)
-    e.add_field(name="🆔 Pedido", value=f"`#{num}`", inline=True)
+    e.add_field(name="📦  Produto", value=f"**{p['nome']}**", inline=False)
+    e.add_field(name="🎁  Opção", value=f"`{v['nome']}`", inline=True)
+    e.add_field(name="💰  Preço", value=f"`R$ {v['preco']:.2f}`", inline=True)
     e.add_field(name="\u200b", value="\u200b", inline=True)
-    e.add_field(name="📦 Produto", value=f"**{p['nome']}**", inline=False)
-    e.add_field(name="🎁 Opção", value=f"**{v['nome']}**", inline=True)
-    e.add_field(name="💰 Preço", value=f"`R$ {v['preco']:.2f}`", inline=True)
-    e.add_field(name="\u200b", value="\u200b", inline=True)
-    e.add_field(name="ℹ️ Próximo passo", value="Clique em **➡️ Prosseguir** abaixo.", inline=False)
+    e.add_field(name="ℹ️  Próximo passo", value="Clique no botão abaixo para prosseguir.", inline=False)
     if p.get("imagem"): e.set_thumbnail(url=p["imagem"])
-    e.set_footer(text="QZZ Vendas • Pagamento via Pix", icon_url=bot.user.display_avatar.url)
+    e.set_footer(text="QZZ Vendas • Pagamento seguro via Pix", icon_url=bot.user.display_avatar.url)
 
     await thread.send(content=i.user.mention, embed=e, view=ProsseguirView(pedido["id"]))
     await i.response.send_message(f"✅ Thread criada: {thread.mention}", ephemeral=True)
@@ -768,8 +843,14 @@ class ProsseguirView(discord.ui.View):
         b.disabled = True
         await i.response.edit_message(view=self)
         e = discord.Embed(
-            title="💳 Método de Pagamento",
-            description="**Escolha como pagar:**\n━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n💠 **Pix** — Aprovação instantânea\n⚡ Entrega automática da key",
+            title="💳  Método de Pagamento",
+            description=(
+                "Escolha como deseja pagar:\n\n"
+                "╭─────────────────────────────╮\n"
+                "│  💠  **Pix** — Aprovação na hora   │\n"
+                "│  ⚡  Entrega automática da key      │\n"
+                "╰─────────────────────────────╯"
+            ),
             color=0xFEE75C
         )
         e.set_footer(text="Selecione abaixo", icon_url=bot.user.display_avatar.url)
@@ -791,7 +872,7 @@ class MetodoPagamentoView(discord.ui.View):
         b.disabled = True
         try: await i.response.edit_message(view=self)
         except: pass
-        try: await i.followup.send("💳 Gerando Pix... ⏳", ephemeral=True)
+        try: await i.followup.send("💳  Gerando seu Pix... ⏳", ephemeral=True)
         except: pass
 
         resp, err = await sharpify_pagar(
@@ -815,14 +896,18 @@ class MetodoPagamentoView(discord.ui.View):
         set_pedidos(pedidos)
 
         e = discord.Embed(
-            title="💳 Pagamento via Pix",
-            description="**Escaneie o QR Code** com seu banco/app.\nAssim que pagar, a key chega automaticamente! ⚡",
+            title="💳  Pagamento via Pix",
+            description=(
+                "**Escaneie o QR Code** com seu banco ou app.\n"
+                "Assim que o pagamento for confirmado, a key chega automaticamente. ⚡\n\n"
+                "╭─────────────────────────────╮\n"
+                f"│  🆔  Pedido: `#{pedido['id']}`\n"
+                f"│  💰  Valor: `R$ {pedido['preco_final']:.2f}`\n"
+                "╰─────────────────────────────╯"
+            ),
             color=0x57F287, timestamp=datetime.now()
         )
-        e.add_field(name="🆔 Pedido", value=f"`#{pedido['id']}`", inline=True)
-        e.add_field(name="💰 Valor", value=f"`R$ {pedido['preco_final']:.2f}`", inline=True)
-        e.add_field(name="\u200b", value="\u200b", inline=True)
-        e.add_field(name="📦 Produto", value=f"**{pedido['produto_nome']}**\n└ {pedido['variacao_nome']}", inline=False)
+        e.add_field(name="📦  Produto", value=f"**{pedido['produto_nome']}**\n└ {pedido['variacao_nome']}", inline=False)
         e.set_footer(text="Aguardando pagamento... ⏳", icon_url=bot.user.display_avatar.url)
 
         enviado = False
@@ -838,17 +923,19 @@ class MetodoPagamentoView(discord.ui.View):
         if not enviado:
             await i.followup.send(embed=e, view=PixAcoesView(pedido["id"], copia))
 
-        # Envia o copia e cola também no PV do cliente
         if copia:
             try:
                 e_pv = discord.Embed(
-                    title="📋 Pix Copia e Cola",
-                    description=f"**Pedido #{pedido['id']}**\n\n```\n{copia}\n```\n\n_Copie o código acima e cole no seu banco/app._",
+                    title="📋  Pix Copia e Cola",
+                    description=(
+                        f"**Pedido #{pedido['id']}**\n\n"
+                        f"```\n{copia}\n```\n"
+                        "_Copie o código acima e cole no seu banco._"
+                    ),
                     color=0x57F287
                 )
                 await i.user.send(embed=e_pv)
-            except Exception as e_pv:
-                print(f"[PV] erro: {e_pv}")
+            except: pass
 
 class PixAcoesView(discord.ui.View):
     def __init__(self, pedido_id, copia):
@@ -864,13 +951,12 @@ class PixAcoesView(discord.ui.View):
             await i.response.send_message("❌ Pedido não encontrado.", ephemeral=True); return
         if i.user.id != pedido["comprador_id"]:
             await i.response.send_message("❌ Só o comprador.", ephemeral=True); return
-
         e = discord.Embed(
-            title="📋 Pix Copia e Cola",
-            description=f"**Pedido #{self.pedido_id}**\n\n```\n{self.copia}\n```\n\n👆 **Selecione o código acima e copie.**\nCole no seu banco/app para pagar.",
+            title="📋  Pix Copia e Cola",
+            description=f"**Pedido #{self.pedido_id}**\n\n```\n{self.copia}\n```\n\n👆 **Selecione e copie.**",
             color=0x57F287
         )
-        e.set_footer(text="Aguardando confirmação do pagamento...", icon_url=bot.user.display_avatar.url)
+        e.set_footer(text="Aguardando confirmação...", icon_url=bot.user.display_avatar.url)
         await i.response.send_message(embed=e, ephemeral=True)
 
     @discord.ui.button(label="Cancelar Pagamento", emoji="❌", style=discord.ButtonStyle.danger)
@@ -883,16 +969,16 @@ class PixAcoesView(discord.ui.View):
             await i.response.send_message("❌ Só o comprador pode cancelar.", ephemeral=True); return
         if pedido["status"] in ("entregue", "pago", "cancelado"):
             await i.response.send_message("⚠️ Este pedido não pode mais ser cancelado.", ephemeral=True); return
-
         e = discord.Embed(
-            title="⚠️ Confirmar Cancelamento",
+            title="⚠️  Confirmar Cancelamento",
             description=(
-                f"**Tem certeza que deseja cancelar o pedido?**\n\n"
-                f"🆔 **Pedido:** `#{self.pedido_id}`\n"
-                f"📦 **Produto:** {pedido['produto_nome']}\n"
-                f"🎁 **Opção:** {pedido['variacao_nome']}\n"
-                f"💰 **Valor:** `R$ {pedido['preco_final']:.2f}`\n\n"
-                "Se cancelar, essa compra será encerrada e a thread fechada."
+                f"**Tem certeza que deseja cancelar?**\n\n"
+                f"╭─────────────────────────────╮\n"
+                f"│  🆔  Pedido: `#{self.pedido_id}`\n"
+                f"│  📦  {pedido['produto_nome']}\n"
+                f"│  🎁  {pedido['variacao_nome']}\n"
+                f"│  💰  `R$ {pedido['preco_final']:.2f}`\n"
+                f"╰─────────────────────────────╯"
             ),
             color=0xED4245
         )
@@ -911,25 +997,65 @@ class ConfirmarCancelarView(discord.ui.View):
             await i.response.send_message("❌ Pedido não encontrado.", ephemeral=True); return
         if i.user.id != pedido["comprador_id"]:
             await i.response.send_message("❌ Só o comprador.", ephemeral=True); return
-
         b.disabled = True
         try: await i.response.edit_message(view=self)
         except: pass
-
         sucesso, msg = await cancelar_pedido(self.pedido_id, i.user)
         if sucesso:
-            e = discord.Embed(
-                title="❌ Pedido Cancelado",
-                description="Seu pedido foi cancelado com sucesso.\n\nSe mudar de ideia, pode comprar novamente a qualquer momento! 💚",
-                color=0xED4245
-            )
+            e = discord.Embed(title="❌  Pedido Cancelado", description="Seu pedido foi cancelado.\n\nSe mudar de ideia, pode comprar novamente! 💚", color=0xED4245)
             await i.followup.send(embed=e, ephemeral=True)
         else:
             await i.followup.send(f"❌ {msg}", ephemeral=True)
 
     @discord.ui.button(label="Não, voltar", emoji="↩️", style=discord.ButtonStyle.secondary)
     async def nao(self, i, b):
-        await i.response.edit_message(content="✅ Ação cancelada. Você pode continuar o pagamento normalmente.", embed=None, view=None)
+        await i.response.edit_message(content="✅ Ação cancelada. Você pode continuar o pagamento.", embed=None, view=None)
+
+# ═══════════════════════════════════════
+#  MENU DE POSTAR CATÁLOGO
+# ═══════════════════════════════════════
+class EscolherModoCatalogoView(discord.ui.View):
+    def __init__(self, pid, canal_id, salvo):
+        super().__init__(timeout=180)
+        self.pid = pid
+        self.canal_id = canal_id
+        self.salvo = salvo
+
+    @discord.ui.button(label="Usar o salvo", emoji="📋", style=discord.ButtonStyle.success)
+    async def usar_salvo(self, i, b):
+        try:
+            titulo = self.salvo.get("titulo", "")
+            bullets = self.salvo.get("bullets", "")
+            recebe = self.salvo.get("recebe", "")
+            aviso = self.salvo.get("aviso", "")
+            prods = get_produtos()
+            p = prods.get(self.pid)
+            canal = i.guild.get_channel(int(self.canal_id))
+            if not canal:
+                await i.response.send_message("❌ Canal não encontrado.", ephemeral=True); return
+            e = montar_embed_catalogo(titulo, bullets, recebe, aviso, p)
+            msg = await canal.send(embed=e, view=VerOpcoesView(self.pid))
+            postados = get_postados()
+            postados[str(msg.id)] = {"produto_id": self.pid, "canal_id": str(canal.id)}
+            set_postados(postados)
+            await i.response.edit_message(content=f"✅ Catálogo postado em {canal.mention}!", embed=None, view=None)
+        except Exception as ex:
+            await i.response.send_message(f"❌ Erro: {ex}", ephemeral=True)
+
+    @discord.ui.button(label="Editar antes de postar", emoji="✏️", style=discord.ButtonStyle.primary)
+    async def editar(self, i, b):
+        modal = PostarCatalogoModal(self.pid, self.canal_id, salvar=True)
+        # Preenche com valores salvos
+        modal.titulo.default = self.salvo.get("titulo", "")
+        modal.bullets.default = self.salvo.get("bullets", "")
+        modal.recebe.default = self.salvo.get("recebe", "")
+        modal.aviso.default = self.salvo.get("aviso", "")
+        modal.imagem.default = self.salvo.get("imagem", "")
+        await i.response.send_modal(modal)
+
+    @discord.ui.button(label="Criar novo", emoji="🆕", style=discord.ButtonStyle.secondary)
+    async def novo(self, i, b):
+        await i.response.send_modal(PostarCatalogoModal(self.pid, self.canal_id, salvar=True))
 
 # ═══════════════════════════════════════
 #  PAINEL ADMIN
@@ -960,7 +1086,7 @@ class PainelAdminView(discord.ui.View):
         prods = get_produtos()
         if not prods:
             await i.response.send_message("❌ Nenhum produto.", ephemeral=True); return
-        opts = [discord.SelectOption(label=p["nome"][:100], value=pid) for pid, p in list(prods.items())[:25]]
+        opts = [discord.SelectOption(label=p["nome"][:100], description="Postar catálogo", value=pid) for pid, p in list(prods.items())[:25]]
         await i.response.send_message("📢 Escolha o produto:", view=SelProdutoPostar(opts), ephemeral=True)
 
     @discord.ui.button(label="Estatísticas", emoji="📊", style=discord.ButtonStyle.secondary, custom_id="adm_stats")
@@ -971,11 +1097,11 @@ class PainelAdminView(discord.ui.View):
         pagos = [p for p in pedidos if p["status"] == "entregue"]
         pend = [p for p in pedidos if p["status"] in ("pendente", "aguardando_pagamento", "aguardando_confirmacao")]
         fat = sum(p["preco_final"] for p in pagos)
-        e = discord.Embed(title="📊 Estatísticas", description="━━━━━━━━━━━━━━━━━━━━━━━━━━", color=0x5865F2, timestamp=datetime.now())
-        e.add_field(name="🛒 Total", value=f"`{len(pedidos)}`", inline=True)
-        e.add_field(name="✅ Entregues", value=f"`{len(pagos)}`", inline=True)
-        e.add_field(name="⏳ Andamento", value=f"`{len(pend)}`", inline=True)
-        e.add_field(name="💰 Faturamento", value=f"`R$ {fat:.2f}`", inline=False)
+        e = discord.Embed(title="📊  Estatísticas da Loja", description="╭─────────────────────────────╮\n│  📈  **VISÃO GERAL**            │\n╰─────────────────────────────╯", color=0x5865F2, timestamp=datetime.now())
+        e.add_field(name="🛒  Total de Pedidos", value=f"`{len(pedidos)}`", inline=True)
+        e.add_field(name="✅  Entregues", value=f"`{len(pagos)}`", inline=True)
+        e.add_field(name="⏳  Em Andamento", value=f"`{len(pend)}`", inline=True)
+        e.add_field(name="💰  Faturamento", value=f"`R$ {fat:.2f}`", inline=False)
         e.set_footer(text="QZZ Vendas", icon_url=bot.user.display_avatar.url)
         await i.response.send_message(embed=e, ephemeral=True)
 
@@ -986,7 +1112,7 @@ class PainelAdminView(discord.ui.View):
         prods = get_produtos()
         if not prods:
             await i.response.send_message("❌ Nenhum produto.", ephemeral=True); return
-        e = discord.Embed(title="🔑 Resumo de Estoque", description="━━━━━━━━━━━━━━━━━━━━━━━━━━", color=0x5865F2, timestamp=datetime.now())
+        e = discord.Embed(title="🔑  Resumo de Estoque", description="╭─────────────────────────────╮\n│  📦  **ESTOQUE POR PRODUTO**    │\n╰─────────────────────────────╯", color=0x5865F2, timestamp=datetime.now())
         total = 0
         for p in prods.values():
             linhas = []
@@ -994,12 +1120,12 @@ class PainelAdminView(discord.ui.View):
                 qtd = len(v.get("keys", []))
                 total += qtd
                 emoji = "🟢" if qtd > 5 else ("🟡" if qtd > 0 else "🔴")
-                linhas.append(f"{emoji} {v['nome']} — `{qtd}`")
-            if linhas: e.add_field(name=f"📦 {p['nome']}", value="\n".join(linhas), inline=False)
+                linhas.append(f"{emoji}  {v['nome']} — `{qtd}`")
+            if linhas: e.add_field(name=f"📦  {p['nome']}", value="\n".join(linhas), inline=False)
         e.set_footer(text=f"Total: {total} keys", icon_url=bot.user.display_avatar.url)
         await i.response.send_message(embed=e, ephemeral=True)
 
-    @discord.ui.button(label="Atualizar Catálogo", emoji="🔄", style=discord.ButtonStyle.secondary, custom_id="adm_atualizar")
+    @discord.ui.button(label="Atualizar Catálogos", emoji="🔄", style=discord.ButtonStyle.secondary, custom_id="adm_atualizar")
     async def atualizar(self, i, b):
         if not is_staff(i.user):
             await i.response.send_message("❌ Sem permissão.", ephemeral=True); return
@@ -1011,7 +1137,7 @@ class PainelAdminView(discord.ui.View):
         for pid in prods.keys():
             await atualizar_catalogo(pid)
             total += 1
-        await i.followup.send(f"✅ **{total}** catálogos atualizados!", ephemeral=True)
+        await i.followup.send(f"✅  **{total}** catálogos atualizados!", ephemeral=True)
 
 class SelProdutoAdmin(discord.ui.View):
     def __init__(self, opts):
@@ -1020,9 +1146,9 @@ class SelProdutoAdmin(discord.ui.View):
 
 class ProdAdminSelect(discord.ui.Select):
     def __init__(self, opts):
-        super().__init__(placeholder="📦 Selecione...", options=opts)
+        super().__init__(placeholder="📦  Selecione um produto...", options=opts)
     async def callback(self, i):
-        await i.response.edit_message(content="📦 Gerenciando...", view=GerenciarProdutoView(self.values[0]))
+        await i.response.edit_message(content="📦  Gerenciando produto...", view=GerenciarProdutoView(self.values[0]))
 
 class SelProdutoPostar(discord.ui.View):
     def __init__(self, opts):
@@ -1031,13 +1157,13 @@ class SelProdutoPostar(discord.ui.View):
 
 class SelProdutoPostarSelect(discord.ui.Select):
     def __init__(self, opts):
-        super().__init__(placeholder="📢 Produto...", options=opts)
+        super().__init__(placeholder="📢  Escolha um produto...", options=opts)
     async def callback(self, i):
         canais = [c for c in i.guild.text_channels if c.permissions_for(i.guild.me).send_messages][:25]
         if not canais:
             await i.response.send_message("❌ Sem canais.", ephemeral=True); return
         opts = [discord.SelectOption(label=f"#{c.name}"[:100], value=str(c.id)) for c in canais]
-        await i.response.edit_message(content="📍 Canal:", view=SelCanalPostar(self.values[0], opts))
+        await i.response.edit_message(content="📍  Escolha o canal:", view=SelCanalPostar(self.values[0], opts))
 
 class SelCanalPostar(discord.ui.View):
     def __init__(self, pid, opts):
@@ -1046,10 +1172,19 @@ class SelCanalPostar(discord.ui.View):
 
 class SelCanalPostarSelect(discord.ui.Select):
     def __init__(self, pid, opts):
-        super().__init__(placeholder="📍 Canal...", options=opts)
+        super().__init__(placeholder="📍  Escolha o canal...", options=opts)
         self.pid = pid
     async def callback(self, i):
-        await i.response.send_modal(PostarCatalogoModal(self.pid, self.values[0]))
+        prods = get_produtos()
+        p = prods.get(self.pid, {})
+        salvo = p.get("catalogo_salvo")
+        if salvo:
+            await i.response.edit_message(
+                content=f"📢  **{p['nome']}** tem um catálogo salvo. O que deseja?",
+                view=EscolherModoCatalogoView(self.pid, self.values[0], salvo)
+            )
+        else:
+            await i.response.send_modal(PostarCatalogoModal(self.pid, self.values[0], salvar=True))
 
 # ═══════════════════════════════════════
 #  GERENCIAR PRODUTO
@@ -1090,8 +1225,8 @@ class GerenciarProdutoView(discord.ui.View):
         prods = get_produtos()
         prods[self.pid]["ativo"] = not prods[self.pid].get("ativo", True)
         set_produtos(prods)
-        status = "🟢 ativo" if prods[self.pid]["ativo"] else "⏸️ pausado"
-        await i.response.send_message(f"✅ {status}.", ephemeral=True)
+        status = "🟢  ativo" if prods[self.pid]["ativo"] else "⏸️  pausado"
+        await i.response.send_message(f"✅ Produto agora está **{status}**.", ephemeral=True)
 
     @discord.ui.button(label="Excluir", emoji="🗑️", style=discord.ButtonStyle.danger)
     async def delp(self, i, b):
@@ -1101,7 +1236,7 @@ class GerenciarProdutoView(discord.ui.View):
         if self.pid in prods:
             nome = prods.pop(self.pid)["nome"]
             set_produtos(prods)
-            await i.response.send_message(f"🗑️ **{nome}** excluído.", ephemeral=True)
+            await i.response.send_message(f"🗑️ Produto **{nome}** excluído.", ephemeral=True)
 
 class SelVariacaoAdmin(discord.ui.View):
     def __init__(self, pid, opts):
@@ -1110,10 +1245,10 @@ class SelVariacaoAdmin(discord.ui.View):
 
 class SelVariacaoAdminSelect(discord.ui.Select):
     def __init__(self, pid, opts):
-        super().__init__(placeholder="🎁 Variação...", options=opts)
+        super().__init__(placeholder="🎁  Selecione uma variação...", options=opts)
         self.pid = pid
     async def callback(self, i):
-        await i.response.edit_message(content="🎁 Gerenciando...", view=GerenciarVariacaoView(self.pid, self.values[0]))
+        await i.response.edit_message(content="🎁  Gerenciando variação...", view=GerenciarVariacaoView(self.pid, self.values[0]))
 
 class GerenciarVariacaoView(discord.ui.View):
     def __init__(self, pid, vid):
@@ -1135,7 +1270,7 @@ class GerenciarVariacaoView(discord.ui.View):
         v = self.get_v()
         ks = v.get("keys", [])
         txt = "\n".join(f"`{i+1}.` {k}" for i, k in enumerate(ks[:30])) if ks else "*(vazio)*"
-        e = discord.Embed(title=f"🔑 {v['nome']}", description=f"**Total:** `{len(ks)}`\n━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n{txt}", color=0x5865F2)
+        e = discord.Embed(title=f"🔑  Keys de {v['nome']}", description=f"**Total:** `{len(ks)}`\n━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n{txt}", color=0x5865F2)
         if len(ks) > 30: e.set_footer(text=f"Mostrando 30 de {len(ks)}")
         await i.response.send_message(embed=e, ephemeral=True)
 
@@ -1153,7 +1288,7 @@ class GerenciarVariacaoView(discord.ui.View):
         if not cargos:
             await i.response.send_message("❌ Sem cargos.", ephemeral=True); return
         opts = [discord.SelectOption(label=c.name[:100], value=str(c.id)) for c in cargos]
-        await i.response.send_message("🎭 Cargo:", view=SelCargoVar(self.pid, self.vid, opts), ephemeral=True)
+        await i.response.send_message("🎭  Escolha o cargo automático desta variação:", view=SelCargoVar(self.pid, self.vid, opts), ephemeral=True)
 
 class SelCargoVar(discord.ui.View):
     def __init__(self, pid, vid, opts):
@@ -1162,7 +1297,7 @@ class SelCargoVar(discord.ui.View):
 
 class SelCargoVarSelect(discord.ui.Select):
     def __init__(self, pid, vid, opts):
-        super().__init__(placeholder="🎭 Cargo...", options=opts)
+        super().__init__(placeholder="🎭  Selecione o cargo...", options=opts)
         self.pid = pid
         self.vid = vid
     async def callback(self, i):
@@ -1196,7 +1331,7 @@ async def painel(i):
     if not is_staff(i.user):
         await i.response.send_message("❌ Sem permissão.", ephemeral=True); return
     await i.channel.send(embed=embed_painel_admin(i.user), view=PainelAdminView())
-    await i.response.send_message("✅ Enviado!", ephemeral=True)
+    await i.response.send_message("✅ Painel enviado!", ephemeral=True)
 
 @bot.tree.command(name="postar", description="[STAFF] Posta um catálogo")
 async def cmd_postar(i):
@@ -1206,7 +1341,7 @@ async def cmd_postar(i):
     if not prods:
         await i.response.send_message("❌ Nenhum produto.", ephemeral=True); return
     opts = [discord.SelectOption(label=p["nome"][:100], value=pid) for pid, p in list(prods.items())[:25]]
-    await i.response.send_message("📢 Produto:", view=SelProdutoPostar(opts), ephemeral=True)
+    await i.response.send_message("📢 Escolha o produto:", view=SelProdutoPostar(opts), ephemeral=True)
 
 @bot.tree.command(name="stats", description="[STAFF] Estatísticas")
 async def stats(i):
